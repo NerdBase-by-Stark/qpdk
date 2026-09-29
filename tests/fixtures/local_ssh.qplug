@@ -1,0 +1,18 @@
+-- Fixture: local_ssh.qplug
+-- Tests QPDK005-EXT: Ssh.New() stored in a local variable inside a function.
+-- Local variables inside functions are garbage-collected when the function returns,
+-- causing the SSH connection object to be destroyed silently.
+-- Rule: Ssh.New() result MUST be stored at module scope.
+
+PluginInfo = { Name = "Test~Local SSH", Version = "1.0.0", Id = "test.local-ssh" }
+
+function GetProperties() return {} end
+function GetControls() return {} end
+function GetControlLayout() return {}, {} end
+
+if Controls then
+  function Connect()
+    local ssh = Ssh.New()
+    ssh:Connect("192.168.1.1", 22, "admin", "pass")
+  end
+end

@@ -1,0 +1,14 @@
+-- Bad Plugin: Missing PluginInfo
+-- This should fail validation
+
+function GetProperties()
+    local props = {}
+    return props
+end
+
+function GetControls(props)
+    local ctls = {}
+    return ctls
+end
+
+-- No PluginInfo defined - this is an error

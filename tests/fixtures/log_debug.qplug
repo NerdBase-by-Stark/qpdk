@@ -1,0 +1,14 @@
+-- Fixture: log_debug.qplug
+-- Tests QPDK020: Log.Debug() is not a valid Q-SYS API call.
+-- Valid Q-SYS logging: Log.Message(), Log.Error()
+-- Invalid: Log.Warning(), Log.Debug()
+
+PluginInfo = { Name = "Test~Log Debug", Version = "1.0.0", Id = "test.log-debug" }
+
+function GetProperties() return {} end
+function GetControls() return {} end
+function GetControlLayout() return {}, {} end
+
+if Controls then
+  Log.Debug("debug output that should not exist")
+end

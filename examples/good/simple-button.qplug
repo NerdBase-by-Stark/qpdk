@@ -1,0 +1,87 @@
+-- Simple Button Plugin
+-- A minimal Q-SYS plugin demonstrating correct structure
+
+PluginInfo = {
+    Name = "Examples~Simple Button",
+    Version = "1.0.0",
+    BuildVersion = "1.0.0.0",
+    Id = "com.qpdk.examples.simple-button",
+    Author = "QPDK",
+    Description = "A simple button that toggles state",
+    ShowDebug = true
+}
+
+function GetProperties()
+    local props = {}
+    table.insert(props, {
+        Name = "Initial State",
+        Type = "boolean",
+        Value = false
+    })
+    return props
+end
+
+function GetControls(props)
+    local ctls = {}
+    table.insert(ctls, {
+        Name = "Toggle",
+        ControlType = "Button",
+        ButtonType = "Toggle",
+        Count = 1,
+        UserPin = true,
+        PinStyle = "Both"
+    })
+    table.insert(ctls, {
+        Name = "State",
+        ControlType = "Indicator",
+        IndicatorType = "LED",
+        Count = 1,
+        UserPin = true,
+        PinStyle = "Output"
+    })
+    return ctls
+end
+
+function GetControlLayout(props)
+    local layout = {}
+    local graphics = {}
+
+    layout["Toggle"] = {
+        PrettyName = "Toggle Button",
+        Style = "Button",
+        ButtonStyle = "Toggle",
+        Position = {10, 10},
+        Size = {100, 32}
+    }
+
+    layout["State"] = {
+        PrettyName = "State LED",
+        Style = "LED",
+        Position = {120, 10},
+        Size = {32, 32}
+    }
+
+    return layout, graphics
+end
+
+-- Runtime code
+if Controls then
+    -- Module-level timer (correct scoping)
+    local StateTimer = Timer.New()
+
+    -- Initialize
+    local function Initialize()
+        Controls.Outputs["State"].Boolean = Properties["Initial State"].Value
+        Status.OK()
+    end
+
+    -- Toggle handler
+    Controls.Inputs["Toggle"].EventHandler = function(ctrl)
+        local newState = ctrl.Boolean
+        Controls.Outputs["State"].Boolean = newState
+        Log.Message("Toggle changed to: " .. tostring(newState))
+    end
+
+    -- Initialize on load
+    Timer.CallAfter(Initialize, 0.1)
+end

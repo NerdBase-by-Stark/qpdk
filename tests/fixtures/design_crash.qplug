@@ -1,0 +1,14 @@
+PluginInfo = { Name = "Design~Crash", Version = "1.0.0", Id = "com.test.design-crash" }
+
+function GetProperties() return {} end
+
+function GetControls(props)
+  return { { Name = "ok", ControlType = "Button", ButtonType = "Toggle" } }
+end
+
+function GetControlLayout(props)
+  -- Crashes at design time: indexing a never-defined global (the MXA920
+  -- PageNames class of bug).
+  local boom = NoSuchGlobalTable.field
+  return {}, {}
+end

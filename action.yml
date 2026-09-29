@@ -1,0 +1,71 @@
+name: 'QPDK Plugin CI'
+description: >-
+  Validate a Q-SYS plugin with QPDK: static rule validation, Designer
+  drag-in (design-time) evaluation, and an optional pytest mock harness.
+branding:
+  icon: 'check-circle'
+  color: 'blue'
+
+inputs:
+  plugin:
+    description: 'Path or glob to the .qplug file(s) to check'
+    required: true
+  test-dir:
+    description: 'Optional pytest directory (mock-runtime harness); skipped when empty'
+    required: false
+    default: ''
+  install-luacheck:
+    description: 'Install luacheck so the LUACHECK-* rule family runs (validation is weaker without it)'
+    required: false
+    default: 'true'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install QPDK
+      shell: bash
+      # GITHUB_ACTION_PATH is runner-provided for composite actions.
+      run: |
+        python -m pip install --quiet --upgrade pip
+        pip install --quiet "${GITHUB_ACTION_PATH}"
+        qpdk --version
+
+    - name: Install luacheck
+      if: inputs.install-luacheck == 'true'
+      shell: bash
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq luarocks
+        sudo luarocks install luacheck
+
+    - name: Validate + design-check
+      shell: bash
+      # Inputs pass through env (never interpolated into the script) so a
+      # crafted input cannot inject shell. PLUGIN_GLOB expands unquoted on
+      # purpose: globs in the input are the supported way to match files.
+      env:
+        PLUGIN_GLOB: ${{ inputs.plugin }}
+      run: |
+        shopt -s nullglob
+        plugins=( $PLUGIN_GLOB )
+        if [ "${#plugins[@]}" -eq 0 ]; then
+          echo "ERROR: no plugins matched '$PLUGIN_GLOB' - gate asserted nothing"
+          exit 1
+        fi
+        for f in "${plugins[@]}"; do
+          echo "::group::qpdk validate $f"
+          qpdk validate "$f"
+          echo "::endgroup::"
+        done
+        echo "::group::qpdk design-check (Designer drag-in evaluation)"
+        qpdk design-check "${plugins[@]}"
+        echo "::endgroup::"
+
+    - name: Run mock-runtime harness
+      if: inputs.test-dir != ''
+      shell: bash
+      env:
+        TEST_DIR: ${{ inputs.test-dir }}
+      run: |
+        pip install --quiet pytest
+        python -m pytest "$TEST_DIR" -q

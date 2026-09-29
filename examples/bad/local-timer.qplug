@@ -1,0 +1,30 @@
+-- Bad Plugin: Local timer scoping issue
+-- This demonstrates the timer garbage collection gotcha
+
+PluginInfo = {
+    Name = "Examples~Bad Timer",
+    Version = "1.0.0",
+    Id = "com.qpdk.examples.bad-timer"
+}
+
+function GetProperties()
+    return {}
+end
+
+function GetControls(props)
+    return {}
+end
+
+if Controls then
+    local function StartPolling()
+        -- BAD: Local timer inside function will be garbage collected!
+        local pollTimer = Timer.New()
+        pollTimer.EventHandler = function()
+            Log.Message("Polling...")
+        end
+        pollTimer:Start(1.0)
+        -- Timer may be GC'd after this function returns
+    end
+
+    StartPolling()
+end

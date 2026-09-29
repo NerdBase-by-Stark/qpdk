@@ -1,0 +1,25 @@
+PluginInfo = { Name = "Arrays~Mixed", Version = "1.0.0", Id = "com.test.arrays-mixed" }
+
+function GetProperties() return {} end
+
+function GetControls(props)
+  return {
+    { Name = "single", ControlType = "Button", ButtonType = "Toggle" },
+    { Name = "one",    ControlType = "Button", ButtonType = "Toggle", Count = 1 },
+    { Name = "arr4",   ControlType = "Button", ButtonType = "Toggle", Count = 4 },
+    { Name = "arr6",   ControlType = "Knob",   ControlUnit = "dB",    Count = 6 },
+  }
+end
+
+function GetControlLayout(props)
+  return {}, {}
+end
+
+if Controls then
+  -- Indexes an array control IN THE MAIN CHUNK: loading this plugin without
+  -- array proxies installed raises immediately, which locks the
+  -- inject-BEFORE-load ordering rule into the harness tests.
+  local a = Controls.arr4
+  a[1].Boolean = false
+  seen_arr4_slot1 = (a[1] ~= nil)
+end

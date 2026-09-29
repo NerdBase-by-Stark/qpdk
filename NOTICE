@@ -1,0 +1,8 @@
+QPDK: Q-SYS Plugin Development Kit
+Copyright 2026 Jason Stark
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This product includes the Q-SYS Plugin-Evaluation-Script
+(https://github.com/Q-SYS-Communities-for-Developers/Plugin-Evaluation-Script),
+used unmodified under the MIT License. See qpdk/qsc_eval/vendor/LICENSE.

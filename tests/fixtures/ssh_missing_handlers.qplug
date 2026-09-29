@@ -1,0 +1,26 @@
+-- Fixture: ssh_missing_handlers.qplug
+-- Tests QPDK028: SSH object missing Error and Timeout handlers.
+-- Without Error/Timeout handlers, connection failures are silently swallowed,
+-- making the plugin undebuggable in production.
+
+PluginInfo = { Name = "Test~SSH Missing Handlers", Version = "1.0.0", Id = "test.ssh-missing" }
+
+function GetProperties() return {} end
+function GetControls() return {} end
+function GetControlLayout() return {}, {} end
+
+if Controls then
+  local ssh = Ssh.New()
+
+  ssh.Connected = function()
+    Log.Message("SSH connected")
+  end
+
+  ssh.Data = function(data, err)
+    Log.Message("SSH data: " .. data)
+  end
+
+  -- Missing: ssh.Reconnect, ssh.Closed, ssh.Error, ssh.Timeout
+
+  ssh:Connect("192.168.1.1", 22, "admin", "pass")
+end

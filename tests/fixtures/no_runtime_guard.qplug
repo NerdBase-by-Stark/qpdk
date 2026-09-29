@@ -1,0 +1,14 @@
+-- Fixture: no_runtime_guard.qplug
+-- Tests QPDK025: Runtime APIs called outside of Controls guard.
+-- Timer.New() is called at module level without protection.
+-- This will crash in Designer's property/layout evaluation phase.
+
+PluginInfo = { Name = "Test~No Guard", Version = "1.0.0", Id = "test.no-guard" }
+
+function GetProperties() return {} end
+function GetControls() return {} end
+function GetControlLayout() return {}, {} end
+
+local poll = Timer.New()
+poll.EventHandler = function() end
+poll:Start(5)

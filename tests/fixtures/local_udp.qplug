@@ -1,0 +1,18 @@
+-- Fixture: local_udp.qplug
+-- Tests QPDK005-EXT: UdpSocket.New() stored in a local variable inside a function.
+-- The socket object will be garbage-collected when the function returns,
+-- destroying the socket silently.
+-- Rule: UdpSocket.New() result MUST be stored at module scope.
+
+PluginInfo = { Name = "Test~Local UDP", Version = "1.0.0", Id = "test.local-udp" }
+
+function GetProperties() return {} end
+function GetControls() return {} end
+function GetControlLayout() return {}, {} end
+
+if Controls then
+  function Connect()
+    local udp = UdpSocket.New()
+    udp:Open("0.0.0.0", 0)
+  end
+end

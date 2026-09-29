@@ -1,0 +1,18 @@
+-- Fixture: reserved_name_shadow.qplug
+-- Tests QPDK024: local function named "log" shadows the Q-SYS Log global.
+-- Any subsequent call to log() in that scope hits the local function,
+-- while Log.Message() still works — but the intent is unclear and bugs arise.
+
+PluginInfo = { Name = "Test~Reserved Shadow", Version = "1.0.0", Id = "test.reserved-shadow" }
+
+function GetProperties() return {} end
+function GetControls() return {} end
+function GetControlLayout() return {}, {} end
+
+if Controls then
+  local function log(msg)
+    print("[LOG] " .. msg)
+  end
+
+  log("this shadows the Q-SYS Log global")
+end

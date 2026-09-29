@@ -1,0 +1,44 @@
+-- Fixture: ssh_complete_handlers.qplug
+-- Tests QPDK028 true negative: SSH with all mandatory handlers assigned.
+-- Mandatory handlers: Connected, Reconnect, Closed, Error, Timeout, LoginFailed
+-- Recommended handler: Data (not mandatory but flagged as INFO if missing)
+
+PluginInfo = { Name = "Test~SSH Complete", Version = "1.0.0", Id = "test.ssh-complete" }
+
+function GetProperties() return {} end
+function GetControls() return {} end
+function GetControlLayout() return {}, {} end
+
+if Controls then
+  local ssh = Ssh.New()
+
+  ssh.Connected = function()
+    Log.Message("SSH connected")
+  end
+
+  ssh.Reconnect = function()
+    Log.Message("SSH reconnecting")
+  end
+
+  ssh.Data = function(data, err)
+    Log.Message("SSH data: " .. data)
+  end
+
+  ssh.Closed = function()
+    Log.Message("SSH closed")
+  end
+
+  ssh.Error = function(err)
+    Log.Error("SSH error: " .. err)
+  end
+
+  ssh.Timeout = function()
+    Log.Error("SSH timeout")
+  end
+
+  ssh.LoginFailed = function()
+    Log.Error("SSH login failed")
+  end
+
+  ssh:Connect("192.168.1.1", 22, "admin", "pass")
+end

@@ -1,0 +1,18 @@
+-- Fixture: local_tcp.qplug
+-- Tests QPDK005-EXT: TcpSocket.New() stored in a local variable inside a function.
+-- The socket object will be garbage-collected when the function returns,
+-- destroying the connection silently.
+-- Rule: TcpSocket.New() result MUST be stored at module scope.
+
+PluginInfo = { Name = "Test~Local TCP", Version = "1.0.0", Id = "test.local-tcp" }
+
+function GetProperties() return {} end
+function GetControls() return {} end
+function GetControlLayout() return {}, {} end
+
+if Controls then
+  function Connect()
+    local tcp = TcpSocket.New()
+    tcp:Connect("192.168.1.1", 1710)
+  end
+end

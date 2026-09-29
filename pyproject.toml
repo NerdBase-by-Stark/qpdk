@@ -1,0 +1,87 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qpdk"
+version = "0.15.0"
+description = "Q-SYS Plugin Development Kit - Headless testing and validation for Q-SYS plugins"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Jason Stark", email = "jason@stark-records.com"}
+]
+keywords = ["qsys", "plugin", "testing", "validation", "lua", "av"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Multimedia :: Sound/Audio",
+]
+
+dependencies = [
+    "click>=8.0.0",
+    "lupa>=2.0",  # Lua integration for Python
+    "rich>=13.0.0",  # Pretty console output
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+qrc = [
+    "aiohttp>=3.8.0",  # For async QRC server
+]
+
+[project.scripts]
+qpdk = "qpdk.cli:main"
+qpdk-validate = "qpdk.validator.cli:main"
+qpdk-qrc = "qpdk.qrc_tester.cli:main"
+
+[project.entry-points.pytest11]
+qpdk_testing = "qpdk.testing.plugin"
+
+[project.urls]
+Homepage = "https://github.com/NerdBase-by-Stark/qpdk"
+Documentation = "https://github.com/NerdBase-by-Stark/qpdk#readme"
+Repository = "https://github.com/NerdBase-by-Stark/qpdk.git"
+Issues = "https://github.com/NerdBase-by-Stark/qpdk/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["qpdk*"]
+
+[tool.setuptools.package-data]
+"qpdk.qsc_eval" = ["vendor/*.lua", "vendor/LICENSE", "vendor/VENDOR.md"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_ignores = true

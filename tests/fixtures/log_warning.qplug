@@ -1,0 +1,14 @@
+-- Fixture: log_warning.qplug
+-- Tests QPDK020: Log.Warning() is not a valid Q-SYS API call.
+-- Valid Q-SYS logging: Log.Message(), Log.Error()
+-- Invalid: Log.Warning(), Log.Debug()
+
+PluginInfo = { Name = "Test~Log Warning", Version = "1.0.0", Id = "test.log-warning" }
+
+function GetProperties() return {} end
+function GetControls() return {} end
+function GetControlLayout() return {}, {} end
+
+if Controls then
+  Log.Warning("this should not exist")
+end

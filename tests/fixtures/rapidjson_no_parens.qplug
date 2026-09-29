@@ -1,0 +1,16 @@
+-- Fixture: rapidjson_no_parens.qplug
+-- Tests QPDK021 true negative: require without parentheses is valid Lua syntax.
+-- Both require("rapidjson") and require "rapidjson" are equivalent.
+-- The validator must recognize both forms.
+
+PluginInfo = { Name = "Test~RapidJSON No Parens", Version = "1.0.0", Id = "test.rapidjson-no-parens" }
+
+function GetProperties() return {} end
+function GetControls() return {} end
+function GetControlLayout() return {}, {} end
+
+if Controls then
+  local json = require "rapidjson"
+  local data = json.decode('{"key": "value"}')
+  Log.Message(data.key)
+end

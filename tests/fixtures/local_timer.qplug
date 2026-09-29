@@ -1,0 +1,40 @@
+-- Fixture: local_timer.qplug
+-- Tests QPDK005 true positive: local Timer.New() inside a function body.
+-- Library objects (Timer, Ssh, TcpSocket, etc.) stored as locals inside
+-- functions are subject to garbage collection. They must be stored at
+-- module-level scope to remain alive for the plugin's lifetime.
+
+PluginInfo = {
+  Name = "Test~Local Timer",
+  Version = "1.0.0",
+  Id = "test.local-timer",
+  Description = "Plugin with local timer inside function"
+}
+
+function GetProperties() return {} end
+
+function GetControls(props)
+  local ctls = {}
+  table.insert(ctls, { Name = "status", ControlType = "Indicator", IndicatorType = "Status" })
+  return ctls
+end
+
+function GetControlLayout(props)
+  local layout = {}
+  layout["status"] = { PinStyle = "Output", Style = "Indicator", Position = {10, 10}, Size = {200, 16} }
+  return layout, {}
+end
+
+if Controls then
+  function StartPolling()
+    -- BUG: local timer inside function body -- will be garbage collected
+    local poll = Timer.New()
+    poll.EventHandler = function()
+      poll:Stop()
+      Log.Message("Poll fired")
+    end
+    poll:Start(5)
+  end
+
+  StartPolling()
+end

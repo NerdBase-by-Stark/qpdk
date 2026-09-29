@@ -1,0 +1,19 @@
+-- Fixture: status_valid.qplug
+-- Tests QPDK023 true negative: status control set to valid value (Fault = 2).
+-- All values 0-5 map to defined StatusState constants and should NOT warn.
+
+PluginInfo = { Name = "Test~Status Valid", Version = "1.0.0", Id = "test.status-valid" }
+
+function GetProperties() return {} end
+
+function GetControls()
+  return {
+    { Name = "status", ControlType = "Indicator", IndicatorType = "Status", Count = 1 }
+  }
+end
+
+function GetControlLayout() return {}, {} end
+
+if Controls then
+  Controls.Outputs["status"].Value = 2
+end

@@ -1,0 +1,35 @@
+-- Fixture: missing_guard.qplug
+-- Tests QPDK025 true positive: runtime API calls WITHOUT the Controls guard.
+-- Q-SYS executes plugin files in both design-time and runtime contexts.
+-- In design-time, Controls is nil. Runtime API calls outside the guard
+-- crash Designer when it loads the plugin properties panel.
+
+PluginInfo = {
+  Name = "Test~Missing Guard",
+  Version = "1.0.0",
+  Id = "test.missing-guard",
+  Description = "Plugin missing the Controls guard"
+}
+
+function GetProperties() return {} end
+
+function GetControls(props)
+  local ctls = {}
+  table.insert(ctls, { Name = "status", ControlType = "Indicator", IndicatorType = "Status" })
+  return ctls
+end
+
+function GetControlLayout(props)
+  local layout = {}
+  layout["status"] = { PinStyle = "Output", Style = "Indicator", Position = {10, 10}, Size = {200, 16} }
+  return layout, {}
+end
+
+-- BUG: Runtime API calls at module level without the Controls guard.
+-- Timer.New() will crash Designer because Controls is nil in design-time.
+pollTimer = Timer.New()
+pollTimer.EventHandler = function()
+  pollTimer:Stop()
+  Log.Message("Poll fired")
+end
+pollTimer:Start(5)

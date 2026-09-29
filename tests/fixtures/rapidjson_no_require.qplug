@@ -1,0 +1,15 @@
+-- Fixture: rapidjson_no_require.qplug
+-- Tests QPDK021: rapidjson used without require().
+-- rapidjson is a Lua C extension that must be loaded with require().
+-- Using it without require produces a nil-index error at runtime.
+
+PluginInfo = { Name = "Test~RapidJSON No Require", Version = "1.0.0", Id = "test.rapidjson-no-require" }
+
+function GetProperties() return {} end
+function GetControls() return {} end
+function GetControlLayout() return {}, {} end
+
+if Controls then
+  local data = rapidjson.decode('{"key": "value"}')
+  Log.Message(data.key)
+end

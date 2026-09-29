@@ -1,0 +1,16 @@
+-- Fixture: with_runtime_guard.qplug
+-- Tests QPDK025 true negative: runtime API calls correctly guarded.
+-- Timer.New() is wrapped in "if Controls then" which is only true
+-- in the runtime phase, not during Designer evaluation.
+
+PluginInfo = { Name = "Test~With Guard", Version = "1.0.0", Id = "test.with-guard" }
+
+function GetProperties() return {} end
+function GetControls() return {} end
+function GetControlLayout() return {}, {} end
+
+if Controls then
+  local poll = Timer.New()
+  poll.EventHandler = function() end
+  poll:Start(5)
+end

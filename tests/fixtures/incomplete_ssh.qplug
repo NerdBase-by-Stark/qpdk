@@ -1,0 +1,59 @@
+-- Fixture: incomplete_ssh.qplug
+-- Tests QPDK028 true positive: SSH object missing mandatory lifecycle handlers.
+-- All 6 mandatory handlers must be assigned: Connected, Reconnect, Closed,
+-- Error, Timeout, LoginFailed. Missing any one causes silent failure on
+-- the corresponding lifecycle event.
+-- This fixture is intentionally missing: Reconnect, Closed, Error, Timeout, LoginFailed
+
+PluginInfo = {
+  Name = "Test~Incomplete SSH",
+  Version = "1.0.0",
+  Id = "test.incomplete-ssh",
+  Description = "Plugin with incomplete SSH handler assignment"
+}
+
+function GetProperties() return {} end
+
+function GetControls(props)
+  local ctls = {}
+  table.insert(ctls, { Name = "status", ControlType = "Indicator", IndicatorType = "Status" })
+  table.insert(ctls, { Name = "connect", ControlType = "Button", ButtonType = "Toggle" })
+  return ctls
+end
+
+function GetControlLayout(props)
+  local layout = {}
+  layout["status"] = { PinStyle = "Output", Style = "Indicator", Position = {10, 10}, Size = {200, 16} }
+  layout["connect"] = { PinStyle = "Both", Style = "Button", Position = {10, 30}, Size = {200, 16} }
+  return layout, {}
+end
+
+if Controls then
+  ssh = Ssh.New()
+
+  -- Only Connected and Data handlers assigned — missing 5 mandatory handlers
+  ssh.Connected = function()
+    Log.Message("SSH connected")
+    Controls["status"].Value = 0
+  end
+
+  ssh.Data = function(data, err)
+    Log.Message("SSH data received")
+  end
+
+  -- BUG: Missing handlers: Reconnect, Closed, Error, Timeout, LoginFailed
+  -- These will cause silent failures in production when:
+  --   - Connection drops (no Closed handler)
+  --   - SSH error occurs (no Error handler)
+  --   - Connection times out (no Timeout handler)
+  --   - Login credentials fail (no LoginFailed handler)
+  --   - Auto-reconnect fires (no Reconnect handler)
+
+  Controls["connect"].EventHandler = function(ctrl)
+    if ctrl.Boolean then
+      ssh:Connect("192.168.1.1", 22, "admin", "password")
+    else
+      ssh:Disconnect()
+    end
+  end
+end

@@ -1,0 +1,18 @@
+-- Fixture: global_timer.qplug
+-- Tests QPDK005-EXT true negative: module-level timer should NOT trigger the warning.
+-- The timer variable is declared at module scope (inside "if Controls then" but
+-- outside any function), which keeps it alive for the lifetime of the plugin.
+
+PluginInfo = { Name = "Test~Global Timer", Version = "1.0.0", Id = "test.global-timer" }
+
+function GetProperties() return {} end
+function GetControls() return {} end
+function GetControlLayout() return {}, {} end
+
+if Controls then
+  local pollTimer = Timer.Create()
+  pollTimer.EventHandler = function()
+    Log.Message("polling")
+  end
+  pollTimer:Start(5)
+end

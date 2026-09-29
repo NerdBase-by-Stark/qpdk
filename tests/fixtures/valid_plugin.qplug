@@ -1,0 +1,70 @@
+-- Fixture: valid_plugin.qplug
+-- A complete, well-formed Q-SYS plugin that should pass ALL validation checks.
+-- Used as the gold-standard true-negative test for the full pipeline.
+
+PluginInfo = {
+  Name = "Test~Valid Plugin",
+  Version = "1.0.0",
+  Id = "test.valid-plugin",
+  Description = "A minimal valid plugin for testing",
+  ShowDebug = false
+}
+
+function GetProperties()
+  local props = {}
+  table.insert(props, {
+    Name = "Poll Interval",
+    Type = "integer",
+    Min = 1,
+    Max = 60,
+    Value = 5
+  })
+  return props
+end
+
+function GetControls(props)
+  local ctls = {}
+  table.insert(ctls, { Name = "status", ControlType = "Indicator", IndicatorType = "Status", Count = 1 })
+  table.insert(ctls, { Name = "connect", ControlType = "Button", ButtonType = "Toggle", Count = 1 })
+  table.insert(ctls, { Name = "device_name", ControlType = "Text", Count = 1 })
+  return ctls
+end
+
+function GetControlLayout(props)
+  local layout = {}
+  local graphics = {}
+
+  layout["status"] = { PinStyle = "Output", Style = "Indicator", Position = {10, 10}, Size = {200, 16} }
+  layout["connect"] = { PinStyle = "Both", Style = "Button", Position = {10, 30}, Size = {200, 16} }
+  layout["device_name"] = { PinStyle = "Input", Style = "Text", Position = {10, 50}, Size = {200, 16} }
+
+  return layout, graphics
+end
+
+if Controls then
+  -- Module-level timer (not local inside a function -- safe from GC)
+  pollTimer = Timer.New()
+
+  pollTimer.EventHandler = function()
+    pollTimer:Stop()
+    Log.Message("Poll fired")
+    pollTimer:Start(5)
+  end
+
+  Controls["connect"].EventHandler = function(ctrl)
+    if ctrl.Boolean then
+      Log.Message("Connecting...")
+      Controls["status"].Value = 5  -- Initializing
+      pollTimer:Start(5)
+    else
+      Log.Message("Disconnecting...")
+      pollTimer:Stop()
+      Controls["status"].Value = 0  -- OK
+    end
+  end
+
+  -- Initialize
+  Controls["status"].Value = 0
+  Controls["status"].String = "OK"
+  Controls["device_name"].String = "Not Connected"
+end

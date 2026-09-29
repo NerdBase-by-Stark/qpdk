@@ -1,0 +1,15 @@
+-- Fixture: rapidjson_with_require.qplug
+-- Tests QPDK021 true negative: rapidjson used with proper require().
+-- This is the correct pattern — should NOT trigger QPDK021.
+
+PluginInfo = { Name = "Test~RapidJSON With Require", Version = "1.0.0", Id = "test.rapidjson-with-require" }
+
+function GetProperties() return {} end
+function GetControls() return {} end
+function GetControlLayout() return {}, {} end
+
+if Controls then
+  local rapidjson = require("rapidjson")
+  local data = rapidjson.decode('{"key": "value"}')
+  Log.Message(data.key)
+end
