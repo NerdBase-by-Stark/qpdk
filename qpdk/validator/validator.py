@@ -354,15 +354,16 @@ class PluginValidator:
         code_content = self._strip_noncode(content)
 
         def _safe(method_name: str, view: str) -> None:
-            """Run a validator method, downgrading any internal crash to a
-            warning. A single buggy rule must never abort the whole run —
-            for a build gate, a missed rule is far better than a traceback."""
+            """Run a validator method, turning any internal crash into a
+            QPDK000 ERROR. One buggy rule must not abort the whole run, but a
+            build gate must not pass a plugin a rule never finished checking."""
             try:
                 getattr(self, method_name)(view, result)
             except Exception as e:
-                result.add_warning(
+                result.add_error(
                     "QPDK000",
-                    f"Internal validator error in {method_name}: {type(e).__name__}: {e}",
+                    f"Internal validator error in {method_name}: {type(e).__name__}: {e} "
+                    "(analysis incomplete; please report this as a QPDK bug)",
                 )
 
         # F2 OPT-OUT: rules that read string-literal VALUES (not just code
@@ -879,8 +880,7 @@ class PluginValidator:
         """QPDK050: a Count=1 control used as an array.
 
         A single control is userdata: #Controls.x, Controls.x[i] and
-        ipairs(Controls.x) raise on a Core (confirmed on a Core; escaped Designer
-        crash, internal notes row 7).
+        ipairs(Controls.x) raise on a Core (confirmed on a Core).
         """
         from . import control_refs
         declared, refs, _checked = self._control_context(content)

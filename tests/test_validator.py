@@ -552,3 +552,38 @@ class TestRuleCatalogue:
         from qpdk.validator.rulesets import DESIGN_CHECK_RULES, RULE_METADATA
         assert len(RULE_METADATA) == 41
         assert len(RULE_METADATA) - len(DESIGN_CHECK_RULES) == 34
+
+
+class TestCrashedRuleIsError:
+    """D-2: a rule that crashes must fail the plugin (QPDK000 ERROR), and an
+    unexpected exception in design-time evaluation must not silently turn
+    QPDK049/050 off."""
+
+    _SRC = (
+        'PluginInfo = { Name = "T~Crash", Version = "1.0.0", Id = "t.crash" }\n'
+        "function GetProperties() return {} end\n"
+        'function GetControls() return { { Name = "a", ControlType = "Button" } } end\n'
+        "function GetControlLayout() return {}, {} end\n"
+    )
+
+    def test_crashed_rule_makes_plugin_invalid(self, monkeypatch):
+        def boom(self, content, result):
+            raise TypeError("synthetic")
+        monkeypatch.setattr(PluginValidator, "_validate_control_layout_coupling", boom)
+        r = PluginValidator().validate_string(self._SRC)
+        hits = [i for i in r.errors if i.code == "QPDK000"]
+        assert hits and "synthetic" in hits[0].message
+        assert not r.valid
+
+    def test_evaluate_does_not_swallow_unexpected_exceptions(self, monkeypatch):
+        from qpdk.mock_runtime import runtime
+        from qpdk.validator import control_refs
+
+        def boom(self, *a, **k):
+            raise RuntimeError("evaluator bug")
+        monkeypatch.setattr(runtime.QSYSRuntime, "run_design_time", boom)
+        with pytest.raises(RuntimeError, match="evaluator bug"):
+            control_refs._evaluate(self._SRC)
+        r = PluginValidator().validate_string(self._SRC)
+        assert any(i.code == "QPDK000" and "evaluator bug" in i.message for i in r.errors)
+        assert not r.valid
