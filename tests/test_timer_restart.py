@@ -1,12 +1,10 @@
 """Timer:Start on a running timer must RESTART it, not stack schedules.
 
 A Q-SYS Timer object holds one pending schedule. Start-per-firing is a
-field-proven idiom (cisco-modular's write-queue drain timer restarts itself
-every firing and runs on production Cores). Before the 2026-07-09 fix,
-MockTimer.Start left the previous repeating event active in the scheduler
-heap — every restart leaked a live event and Start-per-firing idioms grew the
-event count exponentially, hanging tick() (caught by the first device-replay
-gauntlet run crossing cisco-modular's 15s poll burst).
+field-proven idiom (deployed plugins restart a drain timer on every firing).
+MockTimer.Start once left the previous repeating event active in the
+scheduler heap — every restart leaked a live event and Start-per-firing
+idioms grew the event count exponentially, hanging tick().
 """
 from qpdk.mock_runtime.timer import MockTimer, TimerScheduler
 
@@ -33,7 +31,7 @@ def test_start_per_firing_does_not_grow_event_queue():
 
     def handler(timer):
         fires.append(sched._current_time)
-        t.Start(0.2)  # cisco-modular drain idiom: restart on every firing
+        t.Start(0.2)  # drain idiom: restart on every firing
 
     t.EventHandler = handler
     t.Start(0.2)
@@ -76,9 +74,8 @@ def test_stop_then_start_still_works():
 
 
 # ---------------------------------------------------------------------------
-# :IsRunning() — V5 addition (2026-07-12, probe-kit-build.md gap 5).
-# KB-confirmed surface: Timer.htm ":IsRunning() Returns true if the timer is
-# running" (a hardware probe CONFIRMED, community-corpus/PLATFORM-CLAIMS-VERDICTS.md §1).
+# :IsRunning() — Timer.htm: ":IsRunning() Returns true if the timer is
+# running".
 # ---------------------------------------------------------------------------
 
 def test_is_running_lifecycle():

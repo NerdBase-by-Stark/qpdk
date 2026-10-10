@@ -1,7 +1,6 @@
 """Both-handler mode: Lua writes fire EventHandlers on PinStyle="Both" controls.
 
-Field truth (cascade-matrix probe, 2026-07-07, Designer 10.3 + Core Nano):
-Lua writes to a Both-pin control DO fire its EventHandler on a real Core.
+Observed on a Core (Designer 10.3): Lua writes to a Both-pin control DO fire its EventHandler on a real Core.
 The mock historically never fired on Lua writes, so mock-green tests could
 not catch echo loops a real Core executes. This mode is OPT-IN:
 

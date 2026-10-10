@@ -1,5 +1,4 @@
-"""Regression tests for the 2026-06-02 mock-runtime fidelity fixes
-(see internal notes)."""
+"""Regression tests for mock-runtime fidelity fixes."""
 
 import pytest
 

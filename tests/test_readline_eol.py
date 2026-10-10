@@ -1,4 +1,4 @@
-"""ReadLine + TcpSocket.EOL semantics (G1 verification, 2026-07-09).
+"""ReadLine + TcpSocket.EOL semantics.
 
 Official EOL table (help.qsys.com TcpSocket topic; SerialPorts.EOL is the
 same table):
@@ -74,7 +74,7 @@ def test_socket_readline_loop_until_nil(cls):
     assert s.BufferLength == len("partial")
 
 
-# -- Lua-side: the exact cisco-modular call shape -----------------------
+# -- Lua-side: a field-used ReadLine call shape ------------------------
 
 def test_lua_ssh_readline_custom():
     from qpdk.mock_runtime.runtime import QSYSRuntime

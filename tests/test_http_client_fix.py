@@ -1,10 +1,10 @@
-"""U3 — HttpClient must expose the real statics API (build spec step 2).
+"""HttpClient must expose the real statics API (HttpClient.htm).
 
 The real HttpClient API is STATIC functions taking a request table —
 Download/Upload/Get/Post/Put/Patch/Delete plus the pure helpers
 CreateUrl/EncodeParams/EncodeString/DecodeString, with EventHandler
-signature (table, code, data, error, headers). Source: official doc
-scrape .firecrawl/qsys-httpclient.md (help.qsys.com HttpClient.htm).
+signature (table, code, data, error, headers). Source: help.qsys.com
+HttpClient.htm.
 The doc lists NO `.New` constructor.
 
 Pre-fix the mock exposed ONLY `.New` — every real-world call

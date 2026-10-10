@@ -1,8 +1,7 @@
-"""qpdk.testing.arrays — auto-derived array-control maps (build spec §2.1).
+"""qpdk.testing.arrays — auto-derived array-control maps.
 
-The hand-maintained ARRAY_CONTROLS list in ani22's conftest rotted three
-ways and killed that harness for a month; the plugin's own GetControls
-Count fields were the truth the whole time. derive_array_controls reads
+Hand-maintained array-control lists in per-plugin conftests rot; the
+plugin's own GetControls Count fields are the truth. derive_array_controls reads
 them via design-time evaluation — no hand list, strict raise if the
 plugin would crash at Designer drag-in.
 """
@@ -34,7 +33,7 @@ class TestDerive:
 class TestCorpusRegression:
     """Derivation must exactly match the real suites' known maps."""
 
-    @pytest.mark.skipif(not ANI22.exists(), reason="ani22 release not on disk")
+    @pytest.mark.skipif(not ANI22.exists(), reason="optional plugin fixture not on disk")
     def test_ani22_eleven_entry_map(self):
         derived = derive_array_controls(ANI22.read_text(encoding="utf-8"))
         assert derived == {
@@ -43,16 +42,15 @@ class TestCorpusRegression:
             "phantom": 2, "led_in": 2, "led_brightness": 3, "output_level": 6,
         }
 
-    @pytest.mark.skipif(not VITEC.exists(), reason="vitec release not on disk")
+    @pytest.mark.skipif(not VITEC.exists(), reason="optional plugin fixture not on disk")
     def test_vitec_empty_map(self):
         assert derive_array_controls(VITEC.read_text(encoding="utf-8")) == {}
 
 
 class TestProxyRespectsCount:
-    """V5 regression (2026-07-12, probe-kit-build.md gap 4): _PROXY_LUA took
-    a count arg and ignored it — with the mock auto-creating any requested
-    control, every numeric index resolved and ipairs(Controls[arr]) never
-    terminated (hung the probe-kit smoke run). The proxy must return nil
+    """Regression: _PROXY_LUA once took a count arg and ignored it — with
+    the mock auto-creating any requested control, every numeric index
+    resolved and ipairs(Controls[arr]) never terminated. The proxy must return nil
     outside 1..count and report count via __len.
 
     Every Lua loop below carries an explicit iteration guard so a

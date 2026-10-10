@@ -97,11 +97,11 @@ def test_load_bank_skips_non_fixtures(tmp_path):
 
 
 def test_real_converted_fixture_loads_if_present():
-    """Sanity link to the monorepo fixture bank (skips when qpdk is standalone)."""
+    """Sanity link to an optional recorded-fixture bank (skips when absent)."""
     from pathlib import Path
     root = Path(__file__).resolve().parents[2] / "device-recordings" / "cisco-room-bar"
     if not root.is_dir():
-        pytest.skip("device-recordings absent (qpdk outside the monorepo)")
+        pytest.skip("optional device-recording fixtures not on disk")
     bank = load_bank(root)
     assert bank, "fixture bank present but empty"
     rec = bank[0]

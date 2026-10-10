@@ -1,8 +1,7 @@
 """Pin QRC error codes to the official spec so they can never silently drift.
 
 Values are the official "QRC Commands > Error Code Reference" table
-(help.qsys.com, identical across 9.13/10.0/10.1 KB mirrors). See
-internal notes
+(help.qsys.com, identical across the 9.13/10.0/10.1 help pages).
 """
 
 from qpdk.qrc_tester.protocol import QRCErrorCode
