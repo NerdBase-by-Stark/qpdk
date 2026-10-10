@@ -477,13 +477,13 @@ end
 
 class TestQPDK024ReservedShadow:
     """Q-SYS provides a set of well-known globals (Log, Timer, Controls, etc.).
-    Defining a local variable with the same case-insensitive name shadows the
-    global for the rest of the scope, introducing subtle bugs where calls like
-    log("msg") hit the local function instead of Log.Message().
+    A local with exactly the same name shadows the global for the rest of the
+    scope. Lua names are case-sensitive, so ``local log`` or ``local controls``
+    shadow nothing and must not be flagged.
     """
 
-    def test_local_function_log_warns(self, v):
-        """local function log() shadows the Log global — should produce QPDK024."""
+    def test_local_function_log_lowercase_ok(self, v):
+        """local function log() does not shadow Log (case differs): no QPDK024."""
         code = _plugin("Shadow Log", """\
 if Controls then
   local function log(msg)
@@ -493,17 +493,30 @@ if Controls then
 end
 """, "shadow-log")
         result = v.validate_string(code)
-        assert any(i.code == "QPDK024" for i in result.issues)
+        assert not any(i.code == "QPDK024" for i in result.issues)
 
-    def test_local_timer_var_warns(self, v):
-        """local timer = ... shadows the Timer global — should produce QPDK024."""
+    def test_local_lowercase_names_ok(self, v):
+        """local timer / local controls / local status differ in case: no QPDK024."""
         code = _plugin("Shadow Timer", """\
 if Controls then
   local timer = Timer.New()
+  local controls = Controls
+  local status = 0
 end
 """, "shadow-timer")
         result = v.validate_string(code)
-        assert any(i.code == "QPDK024" for i in result.issues)
+        assert not any(i.code == "QPDK024" for i in result.issues)
+
+    def test_local_exact_case_log_warns(self, v):
+        """local function Log() shadows the Log global: QPDK024."""
+        code = _plugin("Shadow Log2", """\
+if Controls then
+  local function Log(msg) print(msg) end
+end
+""", "shadow-log2")
+        result = v.validate_string(code)
+        hits = [i for i in result.issues if i.code == "QPDK024"]
+        assert len(hits) == 1 and "'Log'" in hits[0].message
 
     def test_unrelated_name_ok(self, v):
         """A local function with a non-reserved name must NOT produce QPDK024."""
@@ -519,13 +532,14 @@ end
         assert not any(i.code == "QPDK024" for i in result.issues)
 
     def test_reserved_shadow_fixture(self, v):
-        """Validate reserved_name_shadow.qplug fixture — should trigger QPDK024."""
+        """reserved_name_shadow.qplug declares ``local function log``; Lua is
+        case-sensitive, so it shadows nothing and must not trigger QPDK024."""
         path = FIXTURES / "reserved_name_shadow.qplug"
         if not path.exists():
             pytest.skip("fixture not found")
         result = v.validate_file(path)
         assert not any(i.code == "QPDK002" for i in result.issues)
-        assert any(i.code == "QPDK024" for i in result.issues)
+        assert not any(i.code == "QPDK024" for i in result.issues)
 
 
 # ---------------------------------------------------------------------------

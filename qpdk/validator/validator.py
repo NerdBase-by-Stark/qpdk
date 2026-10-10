@@ -91,10 +91,10 @@ class PluginValidator:
     # SSH recommended handlers (missing = INFO)
     _SSH_HANDLERS_RECOMMENDED = ["Data"]
 
-    # Reserved Q-SYS global names — local variables with these names (case-insensitive)
-    # shadow the Q-SYS API and introduce subtle bugs.
+    # Reserved Q-SYS global names. A local with exactly one of these names
+    # (Lua names are case-sensitive) shadows the Q-SYS API for its scope.
     _RESERVED_NAMES = [
-        "Log", "Timer", "Controls", "Properties", "Status", "System", "Design",
+        "Log", "Timer", "Controls", "Properties", "System", "Design",
         "Ssh", "TcpSocket", "UdpSocket", "HttpClient", "Component", "NamedControl",
         "Uci", "Snapshot", "Mixer", "Audio", "SerialPorts", "Gpio", "Notifications",
     ]
@@ -1229,11 +1229,12 @@ class PluginValidator:
     def _validate_reserved_name_shadow(self, content: str, result: ValidationResult) -> None:
         """Detect local variables that shadow Q-SYS reserved global names.
 
-        QPDK024: Case-insensitive check for local variable/function declarations
-        that shadow Q-SYS API globals like Log, Timer, Controls, etc.
+        QPDK024: exact-case check for local variable/function declarations
+        that shadow Q-SYS API globals like Log, Timer, Controls, etc. Lua
+        names are case-sensitive, so ``local controls`` or ``local function
+        log`` shadow nothing and are not flagged.
         """
-        # Build case-insensitive lookup set
-        reserved_lower = {name.lower(): name for name in self._RESERVED_NAMES}
+        reserved = set(self._RESERVED_NAMES)
 
         # Patterns for local variable/function declarations
         local_var_re = re.compile(r'\blocal\s+(?:function\s+)?(\w+)')
@@ -1248,11 +1249,10 @@ class PluginValidator:
             m = local_var_re.search(code_part)
             if m:
                 var_name = m.group(1)
-                canonical = reserved_lower.get(var_name.lower())
-                if canonical:
+                if var_name in reserved:
                     result.add_warning(
                         self.RESERVED_NAME_SHADOW,
-                        f"Local '{var_name}' shadows Q-SYS reserved global '{canonical}'. "
+                        f"Local '{var_name}' shadows Q-SYS reserved global '{var_name}'. "
                         f"Consider renaming to avoid shadowing the Q-SYS API.",
                         line=line_num
                     )
