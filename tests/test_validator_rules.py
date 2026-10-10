@@ -94,7 +94,7 @@ end
     def test_multiline_if_condition_does_not_desync(self, v):
         """A multi-line `if` condition must not hide a later GC-risk local.
 
-        Regression (D3, Fable review 2026-07-06): the old hand-rolled counter
+        Regression: the old hand-rolled counter
         only registered an if-opener when `then` sat on the SAME line, so the
         if's `end` over-popped the function frame and the scanner believed it
         had left the function — silently missing `local t = Timer.New()`.
@@ -477,13 +477,13 @@ end
 
 class TestQPDK024ReservedShadow:
     """Q-SYS provides a set of well-known globals (Log, Timer, Controls, etc.).
-    Defining a local variable with the same case-insensitive name shadows the
-    global for the rest of the scope, introducing subtle bugs where calls like
-    log("msg") hit the local function instead of Log.Message().
+    A local with exactly the same name shadows the global for the rest of the
+    scope. Lua names are case-sensitive, so ``local log`` or ``local controls``
+    shadow nothing and must not be flagged.
     """
 
-    def test_local_function_log_warns(self, v):
-        """local function log() shadows the Log global — should produce QPDK024."""
+    def test_local_function_log_lowercase_ok(self, v):
+        """local function log() does not shadow Log (case differs): no QPDK024."""
         code = _plugin("Shadow Log", """\
 if Controls then
   local function log(msg)
@@ -493,17 +493,30 @@ if Controls then
 end
 """, "shadow-log")
         result = v.validate_string(code)
-        assert any(i.code == "QPDK024" for i in result.issues)
+        assert not any(i.code == "QPDK024" for i in result.issues)
 
-    def test_local_timer_var_warns(self, v):
-        """local timer = ... shadows the Timer global — should produce QPDK024."""
+    def test_local_lowercase_names_ok(self, v):
+        """local timer / local controls / local status differ in case: no QPDK024."""
         code = _plugin("Shadow Timer", """\
 if Controls then
   local timer = Timer.New()
+  local controls = Controls
+  local status = 0
 end
 """, "shadow-timer")
         result = v.validate_string(code)
-        assert any(i.code == "QPDK024" for i in result.issues)
+        assert not any(i.code == "QPDK024" for i in result.issues)
+
+    def test_local_exact_case_log_warns(self, v):
+        """local function Log() shadows the Log global: QPDK024."""
+        code = _plugin("Shadow Log2", """\
+if Controls then
+  local function Log(msg) print(msg) end
+end
+""", "shadow-log2")
+        result = v.validate_string(code)
+        hits = [i for i in result.issues if i.code == "QPDK024"]
+        assert len(hits) == 1 and "'Log'" in hits[0].message
 
     def test_unrelated_name_ok(self, v):
         """A local function with a non-reserved name must NOT produce QPDK024."""
@@ -519,13 +532,14 @@ end
         assert not any(i.code == "QPDK024" for i in result.issues)
 
     def test_reserved_shadow_fixture(self, v):
-        """Validate reserved_name_shadow.qplug fixture — should trigger QPDK024."""
+        """reserved_name_shadow.qplug declares ``local function log``; Lua is
+        case-sensitive, so it shadows nothing and must not trigger QPDK024."""
         path = FIXTURES / "reserved_name_shadow.qplug"
         if not path.exists():
             pytest.skip("fixture not found")
         result = v.validate_file(path)
         assert not any(i.code == "QPDK002" for i in result.issues)
-        assert any(i.code == "QPDK024" for i in result.issues)
+        assert not any(i.code == "QPDK024" for i in result.issues)
 
 
 # ---------------------------------------------------------------------------
@@ -563,12 +577,28 @@ end
         result = v.validate_string(code)
         assert not any(i.code == "QPDK025" for i in result.issues)
 
+    @pytest.mark.parametrize("guard", [
+        "if Controls ~= nil then",
+        "if Controls and Controls.led then",
+        "if Controls ~= nil and Controls.led then",
+    ])
+    def test_alternate_guard_forms_ok(self, v, guard):
+        """B3: `~= nil` and `and ...` guards keep the body off the design-time path."""
+        code = _plugin("Alt Guard", guard + """
+  Controls.led.Boolean = true
+  local poll = Timer.New()
+end
+""", "alt-guard")
+        result = v.validate_string(code)
+        assert not any(i.code == "QPDK025" for i in result.issues), \
+            [(i.line, i.message) for i in result.issues if i.code == "QPDK025"]
+
     def test_guard_elsewhere_does_not_cover_toplevel_call(self, v):
         """A guard block somewhere must not excuse a top-level call outside it.
 
-        Regression (D2, Fable review 2026-07-06): the old check was two
-        file-level booleans — ONE `if Controls then` anywhere suppressed the
-        ERROR even when the runtime call executed outside every guard.
+        Regression: the old check was two file-level booleans, so ONE
+        `if Controls then` anywhere suppressed the ERROR even when the
+        runtime call executed outside every guard.
         """
         code = _plugin("Partial Guard", """\
 if Controls then
@@ -1126,8 +1156,37 @@ end
 # QPDK031: Single-shot timer missing :Stop()
 # ---------------------------------------------------------------------------
 
+    def test_isconnected_guard_in_enclosing_function_ok(self, v):
+        """B6: an IsConnected early return in the same function guards the Write."""
+        code = _plugin("IsConn Guard", """\
+if Controls then
+  sock = TcpSocket.New()
+  function Send(data)
+    if not sock.IsConnected then
+      return nil
+    end
+    local payload = data .. "\\n"
+    sock:Write(payload)
+  end
+end
+""", "isconn-guard")
+        result = v.validate_string(code)
+        assert not any(i.code == "QPDK029" for i in result.issues)
+
+    def test_isconnected_of_other_object_does_not_guard(self, v):
+        code = _plugin("IsConn Other", """\
+if Controls then
+  function Send(data)
+    if not other.IsConnected then return end
+    sock:Write(data)
+  end
+end
+""", "isconn-other")
+        result = v.validate_string(code)
+        assert any(i.code == "QPDK029" for i in result.issues)
+
 class TestQPDK031TimerMissingStop:
-    """One-shot timers require :Stop() in the EventHandler to prevent repeated firing."""
+    """A Timer repeats until stopped; a never-stopped timer is surfaced as INFO."""
 
     def test_timer_handler_no_stop_warns(self, v):
         """Timer EventHandler without :Stop() should produce QPDK031."""
@@ -1141,7 +1200,10 @@ if Controls then
 end
 """, "timer-nostop")
         result = v.validate_string(code)
-        assert any(i.code == "QPDK031" for i in result.issues)
+        hits = [i for i in result.issues if i.code == "QPDK031"]
+        # B5: a Timer repeats by default (Timer.htm), so this is advisory INFO.
+        assert hits and all(i.severity == IssueSeverity.INFO for i in hits)
+        assert "poll timer" in hits[0].message
 
     def test_timer_handler_with_stop_ok(self, v):
         """Timer EventHandler with :Stop() must NOT produce QPDK031."""
@@ -1340,10 +1402,12 @@ if Controls then
 end
 """
         result = v.validate_string(code)
-        assert any(i.code == "QPDK035" for i in result.issues)
+        hits = [i for i in result.issues if i.code == "QPDK035"]
+        # B4: advisory INFO; the re-entrancy claim is not in the Q-SYS docs.
+        assert hits and all(i.severity == IssueSeverity.INFO for i in hits)
 
     def test_message_is_de_fabricated_and_hedged(self, v):
-        """Round 4: the QPDK035 message must NOT assert the unverified
+        """the QPDK035 message must NOT assert the unverified
         "fundamental Q-SYS framework constraint" / "rejects Lua writes from
         Timer context" mechanism, and MUST hedge (cf. retired-QPDK038 lesson)."""
         code = """\
@@ -1628,7 +1692,7 @@ end
     def test_large_function_with_inner_blocks_warns(self, v):
         """A >100-line function whose body contains if/for blocks must still fire.
 
-        Regression (D1, Fable review 2026-07-06): the old counter popped the
+        Regression: the old counter popped the
         function frame on ANY `end`, so the first inner `if ... end` truncated
         the measured span and the rule went silent on any realistic function.
         """
@@ -1874,7 +1938,24 @@ if Controls then
 end
 """, "monitor-bad")
         result = v.validate_string(code)
-        assert any(i.code == "QPDK037" for i in result.issues)
+        hits = [i for i in result.issues if i.code == "QPDK037"]
+        # B7: advisory INFO; the rule is keyed to one plugin family's naming.
+        assert hits and all(i.severity == IssueSeverity.INFO for i in hits)
+
+    def test_compound_monitor_guard_ok(self, v):
+        """B7: `if isWrite and Controls.monitor_mode.Boolean then return end` guards."""
+        code = _plugin("Monitor Compound", """\
+if Controls then
+  function send(cmd, isWrite)
+    if isWrite and Controls.monitor_mode.Boolean then
+      return
+    end
+    sendData(cmd)
+  end
+end
+""", "monitor-compound")
+        result = v.validate_string(code)
+        assert not any(i.code == "QPDK037" for i in result.issues)
 
     def test_senddata_with_monitor_guard_ok(self, v):
         """sendData with nearby monitor_mode check must NOT produce QPDK037."""
@@ -2065,7 +2146,7 @@ end
         result = v.validate_string(code)
         assert not any(i.code == "QPDK037" for i in result.issues)
 
-    # --- Round 4: robust _find_function_ranges (was: per-line open/close
+    # --- robust _find_function_ranges (was: per-line open/close
     #     counter that dropped frames on multi-line block conditions). ---
 
     def test_split_for_do_does_not_drop_enclosing_frame(self, v):
@@ -2076,8 +2157,7 @@ end
         popping the function's own frame early, so the sendData looked
         un-enclosed and its guard was invisible → false QPDK037. Verified: the
         old algorithm returns NO enclosing range for the sendData here; the new
-        scanner encloses it in the guarded function. (Same drift class as
-        CiscoRoomOS-Enhanced-v2.5.4.8 L4980, inside the guarded ``parseData``.)
+        scanner encloses it in the guarded function.
         """
         code = _plugin("MM SplitForDo", """\
 if Controls then
@@ -2141,7 +2221,7 @@ end
 
 
 class TestHarvestGlobalDefs:
-    """Round 4: _harvest_global_defs feeds the plugin's own top-level global
+    """_harvest_global_defs feeds the plugin's own top-level global
     definitions to luacheck so its cross-section helper functions are not
     flagged W111 (set non-standard global) / W113 (undefined global)."""
 
@@ -2179,6 +2259,45 @@ class TestHarvestGlobalDefs:
         src = '-- function ghost() end\nlocal s = "function phantom() end"\n'
         got = PluginValidator._harvest_global_defs(src)
         assert "ghost" not in got and "phantom" not in got
+
+
+class TestW113AssignedGlobal:
+    """LUACHECK-W113 (read of an undefined global) is INFO when the plugin
+    assigns that name as a global somewhere (a W111 site, the cross-section
+    global idiom), and stays a WARNING when the name is never assigned."""
+
+    pytestmark = pytest.mark.skipif(
+        __import__("shutil").which("luacheck") is None, reason="luacheck not installed")
+
+    _SRC = """\
+PluginInfo = { Name = "Test~W113", Version = "1.0.0", Id = "test.w113" }
+function GetProperties() return {} end
+function GetControls() return {} end
+function GetControlLayout() return {}, {} end
+if Controls then
+  if true then
+    sharedState = 1
+  end
+  print(sharedState)
+  print(sharedStat)
+end
+"""
+
+    def _w113(self, tmp_path):
+        f = tmp_path / "w113.qplug"
+        f.write_text(self._SRC)
+        r = PluginValidator().validate_file(f)
+        return {i.line: i for i in r.issues if i.code == "LUACHECK-W113"}
+
+    def test_read_of_assigned_global_is_info(self, tmp_path):
+        hits = self._w113(tmp_path)
+        assert hits[9].severity == IssueSeverity.INFO
+        assert "sharedState" in hits[9].message
+
+    def test_read_of_never_assigned_global_warns(self, tmp_path):
+        hits = self._w113(tmp_path)
+        assert hits[10].severity == IssueSeverity.WARNING
+        assert "sharedStat'" in hits[10].message
 
 
 class TestQPDK012DesignTimeRuntimeGlobal:
@@ -2309,7 +2428,7 @@ end
 
 # ===========================================================================
 # v0.5.0-test fix batch — F1/F2 string-awareness, F3, F4, F5 (QPDK011),
-# F6 (QPDK013). See internal notes
+# F6 (QPDK013).
 # ===========================================================================
 
 _HEADER_NOLAYOUT = """\
@@ -2554,8 +2673,20 @@ class TestF5TriggerInputPin:
         result = v.validate_string(code)
         issues = [i for i in result.issues if i.code == "QPDK011"]
         assert len(issues) == 1
-        assert issues[0].severity == IssueSeverity.WARNING
+        # B2: INFO (full ruleset only) until a bench probe settles it; QSC's
+        # own managed plugins ship this pattern.
+        assert issues[0].severity == IssueSeverity.INFO
         assert "Unverified" in issues[0].message
+
+    def test_trigger_input_silent_in_default_ruleset(self):
+        code = _plugin_with_controls(
+            "F5Def",
+            '  table.insert(ctls, { Name = "Fire", ControlType = "Button", ButtonType = "Trigger", PinStyle = "Input" })\n',
+            '  layout["Fire"] = {}\n',
+            "f5-def",
+        )
+        result = PluginValidator(ruleset="default").validate_string(code)
+        assert not any(i.code == "QPDK011" for i in result.issues)
 
     def test_trigger_both_warns(self, v):
         code = _plugin_with_controls(
@@ -2627,6 +2758,26 @@ class TestF6ControlLayoutCoupling:
                  and i.severity == IssueSeverity.WARNING]
         assert any("Volumee" in i.message for i in warns)
 
+    @pytest.mark.parametrize("controls,layout", [
+        # control with a nested Choices table next to a plain control
+        ('  table.insert(ctls, { Name = "plain", ControlType = "Button", Count = 1 })\n'
+         '  table.insert(ctls, { Name = "mode", ControlType = "Text", Choices = {"A","B"}, PinStyle = "Both" })\n',
+         '  layout["plain"] = {}\n  layout["mode"] = {}\n'),
+        # Count=4 control laid out with literal "ch N" element keys
+        ('  table.insert(ctls, { Name = "ch", ControlType = "Knob", Count = 4 })\n',
+         '  layout["ch 1"] = {}\n  layout["ch 2"] = {}\n'),
+        # Name built by concatenation
+        ('  table.insert(ctls, { Name = "In " .. 1, ControlType = "Button", Count = 1 })\n',
+         '  layout["In 1"] = {}\n'),
+    ])
+    def test_legitimate_declarations_not_called_typos(self, v, controls, layout):
+        """B8: keys that match the evaluated GetControls are not 'likely a typo'."""
+        code = _plugin_with_controls("F6Legit", controls, layout, "f6-legit")
+        result = v.validate_string(code)
+        warns = [i for i in result.issues if i.code == "QPDK013"
+                 and i.severity == IssueSeverity.WARNING]
+        assert not warns, [i.message for i in warns]
+
     def test_control_without_layout_is_info(self, v):
         """A control with no layout entry -> INFO, not WARNING."""
         code = _plugin_with_controls(
@@ -2679,8 +2830,8 @@ class TestF6ControlLayoutCoupling:
     def test_count_variable_control_not_flagged(self, v):
         """Audit fix: Count set to a VARIABLE (not a numeric literal) means N
         instances → suffixed names + dynamic-suffix layout keys. The bare Name
-        must NOT draw an INFO. Reproduces the 17 false advisories the Cisco
-        v2.5.4.8 plugin drew (Count = sourceCount / hdmiInputCount)."""
+        must NOT draw an INFO. Reproduces 17 false advisories a real plugin
+        drew (Count = sourceCount / hdmiInputCount)."""
         code = _plugin_with_controls(
             "F6CountVar",
             '  local sourceCount = props["Sources"].Value\n'
@@ -2746,7 +2897,7 @@ def _plugin_with_layout_fn(name, controls_body, layout_fn, id_suffix):
 
 
 class TestF6InlineLiteralLayout:
-    """0.14.0 regression (memory e1fdb1cf / v5-quick-wins §1): QPDK013's key
+    """0.14.0 regression: QPDK013's key
     scraper only saw ``layout["name"]={...}`` ASSIGNMENT form; a layout built
     as an inline table-constructor literal (``local layout = { ["x"]={...} }``
     or ``return { x = {...} }, {}``) yielded zero keys, so every Input-pin

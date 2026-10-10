@@ -28,12 +28,12 @@ class PluginValidator:
     MISSING_FIELD = "QPDK003"
     INVALID_FIELD = "QPDK004"
     TIMER_SCOPING = "QPDK005"
-    UNDEFINED_GLOBAL = "QPDK006"  # reserved — luacheck W1xx
-    UNUSED_VARIABLE = "QPDK007"  # reserved — luacheck W211/W311
+    # QPDK006/QPDK007 are retired (luacheck W1xx / W211/W311 own those checks);
+    # see RETIRED_RULES in rulesets.py. The codes are never reused.
     DUPLICATE_PLUGIN_ID = "QPDK008"
     VERSION_API = "QPDK009"
     CONTROL_NAMING = "QPDK010"
-    TRIGGER_INPUT_PIN = "QPDK011"      # F5 — Button Trigger + PinStyle Input/Both (hedged WARNING)
+    TRIGGER_INPUT_PIN = "QPDK011"      # Button Trigger + PinStyle Input/Both (advisory INFO)
     DESIGN_TIME_RUNTIME_GLOBAL = "QPDK012"  # runtime-only global indexed in a design-time GetX body (ERROR Controls / WARNING others)
     CONTROL_LAYOUT_COUPLING = "QPDK013"  # F6 — GetControls<->GetControlLayout key coupling (WARNING/INFO)
     LOG_API = "QPDK020"
@@ -91,10 +91,10 @@ class PluginValidator:
     # SSH recommended handlers (missing = INFO)
     _SSH_HANDLERS_RECOMMENDED = ["Data"]
 
-    # Reserved Q-SYS global names — local variables with these names (case-insensitive)
-    # shadow the Q-SYS API and introduce subtle bugs.
+    # Reserved Q-SYS global names. A local with exactly one of these names
+    # (Lua names are case-sensitive) shadows the Q-SYS API for its scope.
     _RESERVED_NAMES = [
-        "Log", "Timer", "Controls", "Properties", "Status", "System", "Design",
+        "Log", "Timer", "Controls", "Properties", "System", "Design",
         "Ssh", "TcpSocket", "UdpSocket", "HttpClient", "Component", "NamedControl",
         "Uci", "Snapshot", "Mixer", "Audio", "SerialPorts", "Gpio", "Notifications",
     ]
@@ -354,15 +354,16 @@ class PluginValidator:
         code_content = self._strip_noncode(content)
 
         def _safe(method_name: str, view: str) -> None:
-            """Run a validator method, downgrading any internal crash to a
-            warning. A single buggy rule must never abort the whole run —
-            for a build gate, a missed rule is far better than a traceback."""
+            """Run a validator method, turning any internal crash into a
+            QPDK000 ERROR. One buggy rule must not abort the whole run, but a
+            build gate must not pass a plugin a rule never finished checking."""
             try:
                 getattr(self, method_name)(view, result)
             except Exception as e:
-                result.add_warning(
+                result.add_error(
                     "QPDK000",
-                    f"Internal validator error in {method_name}: {type(e).__name__}: {e}",
+                    f"Internal validator error in {method_name}: {type(e).__name__}: {e} "
+                    "(analysis incomplete; please report this as a QPDK bug)",
                 )
 
         # F2 OPT-OUT: rules that read string-literal VALUES (not just code
@@ -480,8 +481,8 @@ class PluginValidator:
         Compiles under Lua 5.3 — the version Q-SYS Cores run — like the mock
         runtime does. lupa's DEFAULT runtime is whatever the newest bundled
         Lua is (5.4+), whose semantics diverge both ways: it rejects legal
-        5.3 code (assigning a for-in control variable — false QPDK001 on the
-        cisco plugin in CI, 2026-07-06) and accepts 5.4-only syntax like
+        5.3 code (assigning a for-in control variable gave a false QPDK001)
+        and accepts 5.4-only syntax like
         `<close>` that the Core cannot load (false negative).
         """
         try:
@@ -601,7 +602,7 @@ class PluginValidator:
         # All field values are coerced to str() first: the PluginInfo parser
         # converts numeric/boolean literals to int/float/bool, and running
         # string ops (`in`, re.match) on those raised an unhandled TypeError
-        # that crashed the entire validator (see internal notes).
+        # that crashed the entire validator.
         if self._is_rule_active("QPDK004"):
             if "Name" in plugin_info:
                 name = str(plugin_info["Name"])
@@ -688,7 +689,7 @@ class PluginValidator:
         # set(V9) - set(V7) difference, which is an artifact of the hand-maintained
         # V7 list: it produced false positives for APIs that long predate v9
         # (json, Crypto, Audio, dir, ...). Gating on the annotation keeps the rule
-        # honest and auditable. See internal notes
+        # honest and auditable.
         target_globals = set(self.globals.keys())
         _version_marker = re.compile(r"\(v9[\d.]*\+?\)", re.IGNORECASE)
         v9_only = {
@@ -776,7 +777,7 @@ class PluginValidator:
             rf"local\s+(\w+)\s*=\s*(?:{constructor_patterns})\s*\("
         )
 
-        # Keyword-balanced function ranges (D3, Fable review 2026-07-06): the
+        # Keyword-balanced function ranges: the
         # old hand-rolled counter only registered an if/for/while opener when
         # then/do sat on the SAME line, so a multi-line condition over-popped
         # the stack and the scanner silently left the function — missing every
@@ -879,8 +880,7 @@ class PluginValidator:
         """QPDK050: a Count=1 control used as an array.
 
         A single control is userdata: #Controls.x, Controls.x[i] and
-        ipairs(Controls.x) raise on a Core (confirmed on a Core; escaped Designer
-        crash, internal notes row 7).
+        ipairs(Controls.x) raise on a Core (confirmed on a Core).
         """
         from . import control_refs
         declared, refs, _checked = self._control_context(content)
@@ -947,9 +947,8 @@ class PluginValidator:
         Core executes it). In design-time context, Controls is nil. Any runtime
         API call outside 'if Controls then' will crash Designer on load.
 
-        Two passes (D2, Fable review 2026-07-06 — previously ONE guard anywhere
-        in the file suppressed the ERROR even when the call executed outside
-        every guard):
+        Two passes (one guard anywhere in the file must not excuse a call that
+        executes outside every guard):
           1. Positional: a runtime API on a top-level line (outside every
              function body and every ``if Controls then`` block, and not after
              an early-return guard) executes at design time — line-anchored
@@ -996,7 +995,7 @@ class PluginValidator:
             return
 
         has_guard = (
-            bool(re.search(r'\bif\s+Controls\s+then\b', content))
+            bool(re.search(r'\bif\s+Controls\s*(?:~=\s*nil\s*)?(?:then|and)\b', content))
             or early_idx is not None
         )
         has_runtime_api = bool(re.search(
@@ -1030,14 +1029,14 @@ class PluginValidator:
         TcpSocket, UdpSocket) do not exist yet — ``Controls`` is nil at design
         time (the SAME mechanism QPDK025 guards; KB Building_a_Plugin.htm keeps
         the run-time part separate). Indexing one inside a GetX body crashes
-        Designer on drag-in (reproduced: cisco-modular-plugin commit ce220a6,
-        "GetControlLayout indexed nil Controls").
+        Designer on drag-in (reproduced: a GetControlLayout that indexed the
+        nil Controls).
 
         Inverse of QPDK025: QPDK025 flags runtime API with NO ``if Controls
         then`` guard ANYWHERE (file-level); QPDK012 flags a runtime global
         INSIDE a design-time function, where a guard cannot help because the
         function itself runs at design time (so it fires even when a correct
-        runtime guard exists elsewhere — exactly the ce220a6 bug).
+        runtime guard exists elsewhere, which is the reproduced crash).
 
         Severity: ERROR for ``Controls`` (crash reproduced + KB-grounded
         nil-at-design-time); WARNING for the other runtime objects (referencing
@@ -1229,11 +1228,12 @@ class PluginValidator:
     def _validate_reserved_name_shadow(self, content: str, result: ValidationResult) -> None:
         """Detect local variables that shadow Q-SYS reserved global names.
 
-        QPDK024: Case-insensitive check for local variable/function declarations
-        that shadow Q-SYS API globals like Log, Timer, Controls, etc.
+        QPDK024: exact-case check for local variable/function declarations
+        that shadow Q-SYS API globals like Log, Timer, Controls, etc. Lua
+        names are case-sensitive, so ``local controls`` or ``local function
+        log`` shadow nothing and are not flagged.
         """
-        # Build case-insensitive lookup set
-        reserved_lower = {name.lower(): name for name in self._RESERVED_NAMES}
+        reserved = set(self._RESERVED_NAMES)
 
         # Patterns for local variable/function declarations
         local_var_re = re.compile(r'\blocal\s+(?:function\s+)?(\w+)')
@@ -1248,11 +1248,10 @@ class PluginValidator:
             m = local_var_re.search(code_part)
             if m:
                 var_name = m.group(1)
-                canonical = reserved_lower.get(var_name.lower())
-                if canonical:
+                if var_name in reserved:
                     result.add_warning(
                         self.RESERVED_NAME_SHADOW,
-                        f"Local '{var_name}' shadows Q-SYS reserved global '{canonical}'. "
+                        f"Local '{var_name}' shadows Q-SYS reserved global '{var_name}'. "
                         f"Consider renaming to avoid shadowing the Q-SYS API.",
                         line=line_num
                     )
@@ -1334,10 +1333,13 @@ class PluginValidator:
         plugin's ability to recover.
 
         Checks both same-line pcall and multi-line pcall(function() wrapper
-        within a small lookback window (3 lines).
+        within a small lookback window (3 lines). A test of ``<obj>.IsConnected``
+        earlier in the enclosing function also counts as a guard (Write raises
+        an error if the socket is not connected: TcpSocket.htm, Ssh.htm).
         """
         # Pattern: obj:Write( -- colon method call syntax
-        write_call_re = re.compile(r'\w+:Write\s*\(')
+        write_call_re = re.compile(r'(\w+):Write\s*\(')
+        func_ranges = None
         # Pattern: pcall(function() — anonymous-function wrapper on a nearby line
         pcall_func_re = re.compile(r'pcall\s*\(\s*function\s*\(')
 
@@ -1363,6 +1365,17 @@ class PluginValidator:
                         found_pcall_wrapper = True
                         break
                 if not found_pcall_wrapper:
+                    if func_ranges is None:
+                        func_ranges = self._find_function_ranges(lines)
+                    obj = write_call_re.search(code_part).group(1)
+                    conn_re = re.compile(rf'\b{re.escape(obj)}\s*\.\s*IsConnected\b')
+                    idx = line_num - 1
+                    enclosing = [(a, b) for a, b in func_ranges if a <= idx <= b]
+                    if enclosing:
+                        fstart = max(a for a, _ in enclosing)
+                        if any(conn_re.search(lines[i].split("--")[0])
+                               for i in range(fstart, idx + 1)):
+                            continue
                     result.add_warning(
                         self.SSH_WRITE_PCALL,
                         "Unprotected :Write() call. SSH/TCP write failures without pcall "
@@ -1373,8 +1386,10 @@ class PluginValidator:
     def _validate_timer_missing_stop(self, content: str, result: ValidationResult) -> None:
         """Detect Timer EventHandlers that don't call :Stop().
 
-        QPDK031: One-shot timer pattern requires :Stop() as first statement
-        in the EventHandler. Without it the timer continues firing.
+        QPDK031 (advisory INFO): a Timer repeats by default until :Stop() is
+        called (Timer.htm). That is right for a poll timer and wrong for a
+        one-shot, so a timer that is never stopped is surfaced for the author
+        to confirm, not reported as a defect.
         Heuristic: Flag timers whose EventHandler bodies contain no :Stop() call.
 
         Exception: If :Stop() is called on the same timer variable elsewhere
@@ -1419,19 +1434,18 @@ class PluginValidator:
                     if external_stop_re.search(content_outside_handler):
                         continue  # Externally-managed repeating timer — skip
 
-                    result.add_warning(
+                    result.add_info(
                         self.TIMER_MISSING_STOP,
-                        f"Timer '{timer_name}' EventHandler has no :Stop() call. "
-                        "Single-shot timers should call :Stop() at the start of the "
-                        "EventHandler to prevent repeated firing.",
+                        f"Timer '{timer_name}' is never stopped, so it repeats. Fine "
+                        "for a poll timer; a one-shot should call :Stop() in its "
+                        "EventHandler.",
                         line=handler_start
                     )
 
     # F4: xAPI command verbs. The string.format/table.concat injection arm is
     # gated on the format/concat target STARTING with one of these literals so
     # the rule only fires when a Cisco xAPI command is actually being built.
-    # KB: cisco_search "xCommand parameter syntax" / "xCommand string parameter
-    # double quote value" — xAPI uses `Key: Value` syntax with double-quoted
+    # Cisco xAPI docs (xCommand parameter syntax): xAPI uses `Key: Value` syntax with double-quoted
     # string params (e.g. xCommand.HttpClient.Allow.Hostname.Add.Expression:
     # "Expression", xCommand.Dial.Number: 123), so an unsanitized .String with a
     # space/newline/quote breaks out of the parameter.
@@ -1501,13 +1515,12 @@ class PluginValidator:
         and an output pin, so it can be wired to an external source AND written
         from Lua. Writing — from a Timer or EventHandler — a control the plugin
         also subscribes to risks a feedback loop / re-entrant EventHandler (the
-        "room-mute-on-disconnect" bug class). This is a HEDGED warning, NOT an
-        assertion of a hard framework rule: the exact runtime behavior is
-        unverified on hardware (cf. the retired-QPDK038 fabrication lesson). It
-        flags the pattern so the author can confirm the write is intentional
-        (e.g. a write-once config field that is never written back — see the
-        plugin's v2.6.0 split-control spec §3.9) or convert the control to a
-        split input/output pair.
+        "room-mute-on-disconnect" bug class). This is an advisory INFO, not an
+        assertion of a hard framework rule: the Q-SYS docs are silent on
+        whether a script write re-fires the handler, and writing feedback to a
+        Both-pin control is common in vendor plugins. It flags the pattern so
+        the author can confirm the write is intentional (e.g. a write-once
+        config field) or convert the control to a split input/output pair.
 
         PinStyle is harvested from BOTH places it can be declared:
           1. GetControls control blocks: ``{ Name="x", ..., PinStyle="Both" }``
@@ -1576,7 +1589,7 @@ class PluginValidator:
                     continue
                 code_part = line.split("--")[0]
                 if write_re.search(code_part):
-                    result.add_warning(
+                    result.add_info(
                         self.PINSTYLE_BOTH_WRITE,
                         f"Control '{ctrl_name}' has PinStyle=\"Both\" and a Lua value write. "
                         "Writing a Both-pin control the plugin also subscribes to can create "
@@ -1800,16 +1813,16 @@ class PluginValidator:
         ``ButtonType="Trigger"`` and ``PinStyle`` in {Input, Both} is suspicious:
         Trigger buttons are typically driven by Lua, not by a wired input pin.
 
-        Scope (KB-grounded, see internal notes):
+        Scope:
           * EXCLUDES ButtonType="StateTrigger" — KB (State_Trigger.htm,
             "#### Input Pin") confirms StateTrigger DOES expose a functioning
             input pin, so flagging it would be wrong.
           * Does NOT flag PinStyle="Output" (legitimate pulse-out) — only the
             input-bearing pin styles Input/Both.
 
-        HEDGED WARNING, never ERROR: the precise "Trigger+Input renders no pin"
-        mechanism is NOT KB-confirmed, so the message says so explicitly. This
-        deliberately avoids the retired-QPDK038 fabrication failure mode.
+        INFO only (full ruleset): the "Trigger+Input renders no pin" mechanism
+        is not in the Q-SYS docs and QSC's own managed plugins ship this
+        pattern, so it stays advisory until a bench probe settles it.
         """
         raw_lines = getattr(self, "_raw_content", content).split("\n")
         for block, name in self._iter_getcontrols_blocks(content):
@@ -1833,7 +1846,7 @@ class PluginValidator:
                 raw_lines[line_num - 1], self.TRIGGER_INPUT_PIN
             ):
                 continue
-            result.add_warning(
+            result.add_info(
                 self.TRIGGER_INPUT_PIN,
                 f"Button '{name}' uses ButtonType=Trigger with "
                 f"PinStyle={pstyle_m.group(1)} — Trigger buttons are typically "
@@ -1989,7 +2002,7 @@ class PluginValidator:
           4. Skip the INFO for ``PinStyle="Output"``/``"None"`` controls: an
              Output pin wires to the schematic and "None" is a pure backend
              value, so a missing panel layout is by design, not an omission.
-          5. (0.14.0, memory e1fdb1cf) Recognize INLINE-LITERAL layout tables —
+          5. Recognize INLINE-LITERAL layout tables —
              ``local layout = { ["x"]={...}, y={...} }`` and
              ``return { x={...} }, {}`` — by brace-walking the constructor and
              harvesting its depth-1 keys. Literal keys SUPPRESS the INFO
@@ -2058,8 +2071,7 @@ class PluginValidator:
         # captured by the literal-key regex above (the ``]`` does not follow the
         # quote). The literal prefix, minus trailing separators, is the control
         # base Name, so such a control IS laid out and must not draw an INFO.
-        # (Peer-reported on widget arrays; closes the audit's noted blind spot
-        # for no-Count controls with dynamic-only keys.)
+        # (Covers no-Count controls laid out only through dynamic keys.)
         dynamic_bases = {
             m.group(1).rstrip(" _-")
             for m in re.finditer(
@@ -2084,7 +2096,15 @@ class PluginValidator:
             return None
 
         # --- WARNING: layout key with no matching control Name (typo). ---
+        # The regex harvest above misses controls with nested tables (inline
+        # Choices), concatenated Names and the "Name N" elements of a Count>1
+        # control, so a key is checked against the evaluated GetControls
+        # (the same source QPDK049 uses) before it is called a typo.
+        from . import control_refs
+        declared = self._control_context(content)[0]
         for key in sorted(layout_keys - control_names):
+            if declared is not None and control_refs._is_declared(key, declared):
+                continue
             ln = _line_of(r'layout\s*\[\s*["\']' + re.escape(key) + r'["\']\s*\]')
             if ln is not None and self._is_suppressed(
                 raw_lines[ln - 1], self.CONTROL_LAYOUT_COUPLING
@@ -2144,9 +2164,10 @@ class PluginValidator:
     def _validate_monitor_mode_guard(self, content: str, result: ValidationResult) -> None:
         """Detect sendData calls without monitor_mode guard.
 
-        QPDK037: Every sendData call path must check the monitor_mode flag.
-        Failing to do so causes command injection in monitoring-only
-        deployments.  Only triggers if monitor_mode variable exists in file.
+        QPDK037 (advisory INFO): every sendData call path should check the
+        monitor_mode flag, or a monitoring-only deployment can send commands.
+        Keyed to the sendData/monitor_mode naming of Cisco xAPI plugins; only
+        triggers if a monitor_mode identifier exists in the file.
 
         Two improvements over the original 5-line lookback:
         1. Read-only commands (xStatus, xFeedback register, echo) are
@@ -2166,9 +2187,9 @@ class PluginValidator:
         func_ranges = self._find_function_ranges(lines)
 
         # Pre-compute which function ranges contain a monitor_mode guard.
-        guard_pat = re.compile(
-            r'\b(?:if|elseif)\s+(?:not\s+)?(?:Controls\.)?monitor_mode\b'
-        )
+        # Any if/elseif condition that tests monitor_mode, including compound
+        # ones such as `if isWrite and Controls.monitor_mode.Boolean then`.
+        guard_pat = re.compile(r'\b(?:if|elseif)\b[^\n]*\bmonitor_mode\b')
         guarded_ranges = set()
         for start, end in func_ranges:
             for i in range(start, end + 1):
@@ -2210,7 +2231,7 @@ class PluginValidator:
                 if enclosing is not None and enclosing in guarded_ranges:
                     continue
 
-                result.add_warning(
+                result.add_info(
                     self.MONITOR_MODE_GUARD,
                     "sendData() call without nearby monitor_mode guard. "
                     "In monitoring-only deployments, sendData() should only "
@@ -2234,8 +2255,8 @@ class PluginValidator:
         as a closer — over-popping the stack and dropping an enclosing function's
         frame. A ``sendData`` inside the lost frame then looked un-enclosed, so
         its function-scope ``monitor_mode`` guard was invisible and QPDK037 fired
-        falsely (reproduced on CiscoRoomOS-Enhanced-v2.5.4.8 L4980, inside
-        ``parseData`` which is monitor_mode-guarded).
+        falsely (seen on a real plugin, inside a monitor_mode-guarded
+        function).
 
         Lua block grammar handled:
           * openers needing ``end``: ``function``, ``if``, ``for``, ``while``,
@@ -2297,7 +2318,9 @@ class PluginValidator:
             offsets.append(pos)
             pos += len(code) + 1
         kw_re = re.compile(r'\b(function|if|for|while|repeat|do|end|until)\b')
-        guard_re = re.compile(r'if\s+Controls\s+then\b')
+        # `if Controls then`, `if Controls ~= nil then`, and `if Controls and
+        # <cond> then` all keep their body off the design-time path.
+        guard_re = re.compile(r'if\s+Controls\s*(?:~=\s*nil\s*)?(?:then|and)\b')
 
         stack: list[dict] = []
         ranges: list[tuple[int, int]] = []
@@ -2415,7 +2438,6 @@ class PluginValidator:
             # version AVAILABILITY is QPDK009's concern. The legacy V7 list is an
             # incomplete subset, so using it here produced spurious W113
             # "undefined global" for APIs that predate v9 (json, Crypto, ...).
-            # See internal notes
             # --globals takes space-separated names as varargs, not comma-separated
             base_globals = QSYS_GLOBALS_V9
             globals_list = list(base_globals.keys())
@@ -2475,38 +2497,54 @@ class PluginValidator:
                 return
 
             # Parse luacheck output
+            parsed = []
             for line in proc.stdout.strip().split("\n"):
                 if not line or line.startswith("Checking"):
                     continue
-
                 # Format: path:line:col: (Wxxx) message
                 match = re.match(r"[^:]+:(\d+):(\d+):\s+\(([EW]\d+)\)\s+(.+)", line)
                 if match:
-                    line_num = int(match.group(1))
-                    col = int(match.group(2))
-                    code = match.group(3)
-                    message = match.group(4)
+                    parsed.append((int(match.group(1)), int(match.group(2)),
+                                   match.group(3), match.group(4)))
 
-                    if code.startswith("E"):
-                        result.add_error(f"LUACHECK-{code}", message,
-                                        line=line_num, column=col, source="luacheck")
-                    elif code in ("W111", "W112"):
-                        # Setting/mutating a non-standard global. In the single-file
-                        # .qplug format, authors legitimately declare top-level
-                        # globals to bridge design-time and runtime sections; the
-                        # def-harvest (_harvest_global_defs) suppresses the ones it
-                        # can see, but globals defined inside guarded scopes leak
-                        # through. This is a style choice, not a defect, so it is
-                        # INFO — not WARNING (vendor corpus: ~1,889 of these across
-                        # 19 real plugins swamped genuine warnings). W113
-                        # (accessing an UNDEFINED global) stays a WARNING because it
-                        # can be a real typo/use-before-def bug.
-                        result.add_info(f"LUACHECK-{code}", message,
-                                        line=line_num, column=col, source="luacheck")
+            # Names the plugin assigns as globals somewhere (W111 sites).
+            # A W113 read of one of these is the single-file .qplug idiom of
+            # a global shared across sections, not a typo, so it is INFO.
+            # A W113 read of a name assigned NOWHERE stays a WARNING: that is
+            # the likely-typo case the check exists for.
+            assigned = {
+                m.group(1) for _l, _c, code, message in parsed if code == "W111"
+                for m in [re.search(r"'([^']+)'", message)] if m
+            }
+
+            for line_num, col, code, message in parsed:
+                if code.startswith("E"):
+                    result.add_error(f"LUACHECK-{code}", message,
+                                     line=line_num, column=col, source="luacheck")
+                elif code in ("W111", "W112"):
+                    # Setting/mutating a non-standard global. In the single-file
+                    # .qplug format, authors legitimately declare top-level
+                    # globals to bridge design-time and runtime sections; the
+                    # def-harvest (_harvest_global_defs) suppresses the ones it
+                    # can see, but globals defined inside guarded scopes leak
+                    # through. This is a style choice, not a defect, so it is
+                    # INFO, not WARNING (vendor corpus: ~1,889 of these across
+                    # 19 real plugins swamped genuine warnings).
+                    result.add_info(f"LUACHECK-{code}", message,
+                                    line=line_num, column=col, source="luacheck")
+                elif code == "W113":
+                    m = re.search(r"'([^']+)'", message)
+                    if m and m.group(1) in assigned:
+                        result.add_info(
+                            f"LUACHECK-{code}",
+                            message + " (assigned as a global elsewhere in this plugin)",
+                            line=line_num, column=col, source="luacheck")
                     else:
                         result.add_warning(f"LUACHECK-{code}", message,
-                                          line=line_num, column=col, source="luacheck")
-
+                                           line=line_num, column=col, source="luacheck")
+                else:
+                    result.add_warning(f"LUACHECK-{code}", message,
+                                       line=line_num, column=col, source="luacheck")
 
         except FileNotFoundError:
             result.add_info("QPDK000", "luacheck not found, skipping static analysis")
@@ -2519,8 +2557,7 @@ class PluginValidator:
         """Structural check of an encrypted .qplugx/.qplugx2 artifact (QPDK048).
 
         Validates the envelope shape only — no decryption, no key material. The
-        two known formats (internal notes +
-        internal notes):
+        two known formats:
 
           v1 (.qplugx):  {"key": b64(256), "iv": b64(16), "data": b64(16*N)}
           v2 (.qplugx2): {"mode","version":2,"language",

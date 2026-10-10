@@ -23,8 +23,8 @@ QSYS_GLOBALS_V9 = {
     "Properties": "table - Access to plugin properties",
     "System": "table - System-level functions and info",
     "Design": "table - Design information",
-    "Status": "table - Status messaging",
-    "StatusState": "table - Status state constants (OK, Compromised, Fault, etc.)",
+    # Not Status / StatusState: neither is a Q-SYS global (absent from
+    # help.qsys.com "Q-SYS Extensions to Lua"); plugins define their own.
     "Log": "table - Logging functions",
 
     # Timers
@@ -70,12 +70,12 @@ QSYS_GLOBALS_V9 = {
     "Notifications": "table - Notification system (v9.8+)",
     "IsManaged": "boolean - Whether design is managed (v9.10+)",
 
-    # Missing from original list (added per deep-analysis-report-v2):
+    # Added later:
     "Network": "table - Network interface information",
     # NOTE: Reflect is the Q-SYS Reflect / Enterprise Manager integration global
     # (used as `Reflect and X or Y`), NOT "cross-plugin control binding". Its
     # version provenance is unverified, so no (v9+) marker — QPDK009 must not
-    # assert an unverified version gate. See internal notes
+    # assert an unverified version gate.
     "Reflect": "userdata - Q-SYS Reflect / Enterprise Manager integration global",
     "WebSocket": "table - WebSocket client (v9.5+)",
     "TcpSocketServer": "table - TCP server socket",
@@ -105,8 +105,6 @@ QSYS_GLOBALS_V7 = {
     "Properties": "table - Access to plugin properties",
     "System": "table - System-level functions and info",
     "Design": "table - Design information",
-    "Status": "table - Status messaging",
-    "StatusState": "table - Status state constants",
     "Log": "table - Logging functions",
 
     # Timers
@@ -148,7 +146,7 @@ QSYS_GLOBALS_V7 = {
     "HandleDebug": "function - Debug message handler",
 }
 
-# Status state constants
+# Values of a Status-type indicator control (not a Q-SYS global table)
 STATUS_STATES = {
     "OK": 0,
     "Compromised": 1,
@@ -172,7 +170,7 @@ CONTROL_TYPES = [
 # Per-field option sets from the Q-SYS plugin control schema (Reserved_Functions).
 # These are DISTINCT fields, not a single "style" — the previous CONTROL_STYLES
 # table conflated them and used wrong values (e.g. Knob "Gain", Button "On/Off").
-# Reference data — not yet enforced by a rule. See internal notes
+# Reference data — not yet enforced by a rule.
 BUTTON_TYPES = ["Toggle", "Momentary", "Trigger", "StateTrigger"]
 KNOB_CONTROL_UNITS = ["dB", "Hz", "Float", "Integer", "Pan", "Percent", "Position", "Seconds"]
 INDICATOR_TYPES = ["Led", "Meter", "Text", "Status"]

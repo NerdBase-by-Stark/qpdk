@@ -1,7 +1,7 @@
-"""UI-LINT QPDK040-046 — geometry lint over EVALUATED layouts (spec Part 1).
+"""UI-LINT QPDK040-046 — geometry lint over EVALUATED layouts.
 
-Every threshold is corpus-mined (build spec §1.3-1.4), and the acceptance
-bar is the findings matrix in §1.5: zero findings across the professional
+Every threshold is mined from a corpus of shipped plugins, and the acceptance
+bar is: zero findings across the professional
 QSC plugins and all six production plugins; exactly 5 QPDK042 findings on
 the known-buggy MXA920's page 1 (right edges 430 vs a 420px background).
 Rules with no corpus true-positive are locked by mutation tests instead.
@@ -46,7 +46,7 @@ def _codes(findings):
 
 
 class TestCorpusRegression:
-    """§1.5 findings matrix: the corpus is the FP contract."""
+    """Findings matrix: the corpus is the false-positive contract."""
 
     @pytest.mark.parametrize("plugin", CORPUS_CLEAN, ids=lambda p: p.stem)
     def test_zero_findings_on_working_plugins(self, plugin):
@@ -154,7 +154,7 @@ class TestExemptions:
         assert _lint(code) == []
 
     def test_none_style_in_vocabulary(self):
-        """Defense-in-depth (§1.4): 'None' MUST be in the vocabulary — with
+        """Defense-in-depth: 'None' MUST be in the vocabulary — with
         the positionless exemption bypassed, the shipped pin-only idiom
         (1,159 production entries) must still yield zero QPDK045 findings."""
         assert "None" in UI_LINT_VOCABULARY

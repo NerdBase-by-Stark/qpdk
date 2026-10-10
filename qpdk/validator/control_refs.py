@@ -10,14 +10,14 @@ runtime code.
   declares. On a Core that lookup is nil and the next index crashes
   (Controls_IO.htm: "attempt to index ... (a nil value)").
 - QPDK050: a Count=1 control used as an array (#Controls.x, Controls.x[i],
-  ipairs(Controls.x)). A single control is userdata, not a table: probed
-  a hardware probe, and the escaped Designer crash in internal notes
+  ipairs(Controls.x)). A single control is userdata, not a table; this was
+  confirmed on a Core.
 
 Limits (by design): QPDK049 accepts a name declared under the defaults or any
 single-property variant (plus an all-max run); QPDK050 judges Count at the
 default configuration. Only literal names are checked. Names built at run time are not seen. If
-design-time evaluation fails or declares no controls, both rules stay silent
-(the crash itself is design-check's job).
+the plugin's own GetControls fails or declares no controls, both rules stay
+silent (the crash itself is design-check's job).
 """
 
 import re
@@ -37,11 +37,14 @@ class ControlRef:
 
 
 def _evaluate(source: str, overrides: dict | None = None):
+    """Run GetControls in design-time mode.
+
+    Plugin Lua errors are collected in the report, not raised. Any exception
+    that escapes is a QPDK bug, so it propagates: the validator reports it as
+    a QPDK000 ERROR rather than letting QPDK049/050 go silently quiet.
+    """
     from qpdk.mock_runtime.runtime import QSYSRuntime
-    try:
-        return QSYSRuntime(design_time=True).run_design_time(source, prop_overrides=overrides)
-    except Exception:
-        return None
+    return QSYSRuntime(design_time=True).run_design_time(source, prop_overrides=overrides)
 
 
 def _controls_of(report) -> dict[str, int]:
@@ -63,7 +66,7 @@ def _property_variants(report) -> list[dict]:
     One run with every numeric property at its Max and every boolean true,
     then one run per single-property change: each enum choice, the boolean
     flipped, a numeric at Min and at Max. Enough to surface controls a
-    property switches on (cisco-modular's widget controls) without a full
+    property switches on (e.g. optional widget controls) without a full
     combinatorial sweep.
     """
     variants: list[dict] = []
@@ -224,7 +227,7 @@ def scalar_as_array(raw: str, refs: list[ControlRef],
             continue
         # A short window each side is enough to see #, [ and ipairs( ... ),
         # and keeps this linear in file size (slicing the whole prefix per
-        # reference was quadratic: 1 s on cisco-modular's 540 references).
+        # reference was quadratic: 1 s on a plugin with 540 references).
         before = raw[max(0, r.start - 64):r.start].rstrip()
         after = raw[r.end:r.end + 64].lstrip()
         always = declared.max_count.get(r.name, 1) <= 1

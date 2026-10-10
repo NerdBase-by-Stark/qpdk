@@ -191,8 +191,7 @@ class TestValidationResult:
 
 
 class TestEngineHardening:
-    """Regression tests for the 2026-06-02 engine audit fixes
-    (see internal notes)."""
+    """Regression tests for validator engine hardening fixes."""
 
     HEADER = (
         'PluginInfo = {{ Name = "T~H", Version = "1.0.0", Id = {id} }}\n'
@@ -305,7 +304,7 @@ class TestQPDK035GetControlsScope:
             "end\n"
         )
         result = validator.validate_string(code)
-        assert any(i.code == "QPDK035" for i in result.warnings)
+        assert any(i.code == "QPDK035" for i in result.infos)
 
     def test_pinstyle_both_dot_notation_write_is_detected(self, validator):
         code = (
@@ -321,7 +320,7 @@ class TestQPDK035GetControlsScope:
             "end\n"
         )
         result = validator.validate_string(code)
-        assert any(i.code == "QPDK035" for i in result.warnings)
+        assert any(i.code == "QPDK035" for i in result.infos)
 
     def test_output_pin_not_flagged(self, validator):
         """Negative control: PinStyle='Output' must not fire QPDK035."""
@@ -444,7 +443,7 @@ class TestQPDK039PlaceholderStyles:
 
 
 class TestQPDK013DynamicLayoutKeys:
-    """Round 3 (peer-reported): QPDK013 must recognize controls laid out via a
+    """QPDK013 must recognize controls laid out via a
     dynamic concat key `layout["base " .. i]` even when the control has no Count,
     while still flagging genuine orphans (typo WARNING) and truly layout-less
     controls (INFO)."""
@@ -486,7 +485,7 @@ class TestQPDK013DynamicLayoutKeys:
         assert any(i.code == "QPDK013" and i.severity == IssueSeverity.WARNING
                    for i in result.issues)
 
-    # --- Round 4: FP guard 4 — PinStyle="Output"/"None" controls are
+    # --- FP guard 4 — PinStyle="Output"/"None" controls are
     #     panel-less by design, so a missing layout must NOT draw an INFO. ---
 
     def test_pinstyle_output_no_layout_not_flagged(self, validator):
@@ -526,3 +525,91 @@ class TestQPDK013DynamicLayoutKeys:
         result = validator.validate_string(code)
         assert any(i.code == "QPDK013" and i.severity == IssueSeverity.INFO
                    and "trigger_in" in i.message for i in result.issues)
+
+
+class TestRuleCatalogue:
+    """B10/A-6: the catalogue lists only live rules, includes QPDK000, and
+    marks the rules that run under design-check rather than validate."""
+
+    def test_retired_codes_not_in_catalogue(self):
+        from qpdk.validator.rulesets import RETIRED_RULES, RULE_METADATA
+        assert {"QPDK006", "QPDK007"} <= set(RETIRED_RULES)
+        assert not set(RETIRED_RULES) & set(RULE_METADATA)
+
+    def test_qpdk000_catalogued_as_error(self):
+        from qpdk.validator.rulesets import RULE_METADATA
+        assert RULE_METADATA["QPDK000"]["severity"] == IssueSeverity.ERROR
+
+    def test_design_check_rules_labelled(self):
+        from qpdk.validator.rulesets import DESIGN_CHECK_RULES, RULE_METADATA
+        assert DESIGN_CHECK_RULES == {f"QPDK04{i}" for i in range(7)}
+        for code, meta in RULE_METADATA.items():
+            labelled = meta["description"].startswith("design-check only:")
+            assert labelled == (code in DESIGN_CHECK_RULES), code
+
+    def test_live_rule_count(self):
+        from qpdk.validator.rulesets import DESIGN_CHECK_RULES, RULE_METADATA
+        assert len(RULE_METADATA) == 41
+        assert len(RULE_METADATA) - len(DESIGN_CHECK_RULES) == 34
+
+
+class TestCrashedRuleIsError:
+    """D-2: a rule that crashes must fail the plugin (QPDK000 ERROR), and an
+    unexpected exception in design-time evaluation must not silently turn
+    QPDK049/050 off."""
+
+    _SRC = (
+        'PluginInfo = { Name = "T~Crash", Version = "1.0.0", Id = "t.crash" }\n'
+        "function GetProperties() return {} end\n"
+        'function GetControls() return { { Name = "a", ControlType = "Button" } } end\n'
+        "function GetControlLayout() return {}, {} end\n"
+    )
+
+    def test_crashed_rule_makes_plugin_invalid(self, monkeypatch):
+        def boom(self, content, result):
+            raise TypeError("synthetic")
+        monkeypatch.setattr(PluginValidator, "_validate_control_layout_coupling", boom)
+        r = PluginValidator().validate_string(self._SRC)
+        hits = [i for i in r.errors if i.code == "QPDK000"]
+        assert hits and "synthetic" in hits[0].message
+        assert not r.valid
+
+    def test_evaluate_does_not_swallow_unexpected_exceptions(self, monkeypatch):
+        from qpdk.mock_runtime import runtime
+        from qpdk.validator import control_refs
+
+        def boom(self, *a, **k):
+            raise RuntimeError("evaluator bug")
+        monkeypatch.setattr(runtime.QSYSRuntime, "run_design_time", boom)
+        with pytest.raises(RuntimeError, match="evaluator bug"):
+            control_refs._evaluate(self._SRC)
+        r = PluginValidator().validate_string(self._SRC)
+        assert any(i.code == "QPDK000" and "evaluator bug" in i.message for i in r.errors)
+        assert not r.valid
+
+
+class TestStatusNotAGlobal:
+    """C1: Status and StatusState are not Q-SYS globals (help.qsys.com
+    "Q-SYS Extensions to Lua" lists neither), so the validator must not
+    treat them as predefined."""
+
+    def test_not_in_globals_lists(self):
+        from qpdk.validator.qsys_globals import QSYS_GLOBALS_V7, QSYS_GLOBALS_V9
+        for g in (QSYS_GLOBALS_V7, QSYS_GLOBALS_V9):
+            assert "Status" not in g and "StatusState" not in g
+
+    @pytest.mark.skipif(__import__("shutil").which("luacheck") is None,
+                        reason="luacheck not installed")
+    def test_undefined_status_call_warns(self, tmp_path):
+        f = tmp_path / "status.qplug"
+        f.write_text(
+            'PluginInfo = { Name = "T~St", Version = "1.0.0", Id = "t.st" }\n'
+            "function GetProperties() return {} end\n"
+            "function GetControls() return {} end\n"
+            "function GetControlLayout() return {}, {} end\n"
+            "if Controls then\n"
+            "  Status.OK()\n"
+            "end\n")
+        r = PluginValidator().validate_file(f)
+        assert any(i.code == "LUACHECK-W113" and "'Status'" in i.message
+                   for i in r.warnings)
