@@ -518,6 +518,9 @@ class QRCMockServer:
         group = self.state.change_groups[group_id]
         for ctrl in controls:
             name = ctrl.get("Name") if isinstance(ctrl, dict) else ctrl
+            # A named-control add replaces any earlier component registration
+            # of the same key, so Poll reports it by its full Name.
+            group.component_controls.pop(name, None)
             if name not in group.controls:
                 group.controls.append(name)
 
@@ -573,6 +576,7 @@ class QRCMockServer:
             name = ctrl.get("Name") if isinstance(ctrl, dict) else ctrl
             if name in group.controls:
                 group.controls.remove(name)
+            group.component_controls.pop(name, None)
 
         return QRCResponse.success(request.id, True)
 
@@ -664,6 +668,7 @@ class QRCMockServer:
 
         group = self.state.change_groups[group_id]
         group.controls.clear()
+        group.component_controls.clear()
         group.last_sent.clear()
         return QRCResponse.success(request.id, True)
 

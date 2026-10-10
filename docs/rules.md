@@ -18,19 +18,19 @@ Each finding is an `ERROR`, a `WARNING` or an `INFO`.
 
 ## Rulesets
 
-`--ruleset` picks which rules run. The default is `default`: errors and
-warnings only, with a count of the INFO advisories it hid. Use `full` to
-list those advisories too.
+`--ruleset` picks which rules run. Without it, every rule runs and the
+output lists errors and warnings, with a count of the INFO advisories it
+did not list. `--ruleset full` lists those advisories too.
 
 | Ruleset | What runs | Typical use |
 |---------|-----------|-------------|
 | `P0` | Crash-preventing rules only | A minimal CI gate |
-| `default` | Every rule that reports errors or warnings | Pre-merge review |
+| `default` | Phase 1 and 2 rules (`qpdk rules` shows each rule's rulesets) | A stable CI gate |
 | `full` | Everything, including INFO advisories | Development |
 
 ```bash
 qpdk validate --ruleset P0 --strict MyPlugin.qplug
-qpdk validate MyPlugin.qplug                      # default
+qpdk validate MyPlugin.qplug                      # every rule, INFO counted
 qpdk validate --ruleset full MyPlugin.qplug
 ```
 

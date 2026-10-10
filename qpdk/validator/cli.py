@@ -21,13 +21,14 @@ console = Console()
               help="Target Q-SYS version")
 @click.option("--ruleset", "-r", "ruleset",
               type=click.Choice(["P0", "default", "full"], case_sensitive=False),
-              default="default",
+              default=None,
               help="Rule set to apply: P0 (crash-preventing only), "
-                   "default (ERROR+WARNING, used when not given), "
-                   "full (adds INFO advisories)")
+                   "default (phase 1 and 2 rules), full (every rule, INFO "
+                   "listed). When omitted, every rule runs and INFO "
+                   "advisories are counted but not listed.")
 @click.option("--quiet", "-q", is_flag=True, help="Only show errors")
 def main(plugin_paths: tuple[str, ...], output_format: str, strict: bool,
-         qsys_version: str, ruleset: str, quiet: bool):
+         qsys_version: str, ruleset: str | None, quiet: bool):
     """Validate Q-SYS plugin files.
 
     Examples:
@@ -40,13 +41,14 @@ def main(plugin_paths: tuple[str, ...], output_format: str, strict: bool,
         console.print("Usage: qpdk-validate [OPTIONS] PLUGIN_PATHS...")
         raise SystemExit(1)
 
-    validator = PluginValidator(qsys_version=qsys_version, ruleset=ruleset)
+    hide_info = ruleset is None
+    validator = PluginValidator(qsys_version=qsys_version, ruleset=ruleset or "full")
     all_valid = True
     results = []
 
     for path in plugin_paths:
         result = validator.validate_file(path)
-        if ruleset.lower() != "full":
+        if hide_info:
             result.hide_info()
         results.append(result)
 

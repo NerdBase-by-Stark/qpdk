@@ -128,3 +128,25 @@ async def test_array_params_get_invalid_params_not_a_dropped_connection(server):
         writer.close()
         await writer.wait_closed()
         await server.stop()
+
+
+async def test_clear_then_named_add_reports_full_name():
+    """After Clear, re-adding Comp.gain as a named control must not keep the
+    earlier component registration's wire shape."""
+    from qpdk.qrc_tester.protocol import QRCRequest
+    from qpdk.qrc_tester.server import QRCMockServer
+
+    s = QRCMockServer()
+    s.add_component("Comp", ["gain"])
+
+    def q(m, p):
+        return QRCRequest(method=m, params=p, id=1)
+
+    await s._handle_cg_add_component_control(
+        "c", q("ChangeGroup.AddComponentControl",
+               {"Id": "g", "Component": {"Name": "Comp", "Controls": [{"Name": "gain"}]}}))
+    await s._handle_cg_clear("c", q("ChangeGroup.Clear", {"Id": "g"}))
+    await s._handle_cg_add_control("c", q("ChangeGroup.AddControl", {"Id": "g", "Controls": ["Comp.gain"]}))
+    changes = s._collect_changes(s.state.change_groups["g"])
+    assert changes and changes[0]["Name"] == "Comp.gain"
+    assert "Component" not in changes[0]

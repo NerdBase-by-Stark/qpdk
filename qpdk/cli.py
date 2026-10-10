@@ -37,14 +37,15 @@ def main():
               help="Target Q-SYS version for API validation")
 @click.option("--ruleset", "-r", "ruleset",
               type=click.Choice(["P0", "default", "full"], case_sensitive=False),
-              default="default",
+              default=None,
               help="Rule set to apply: P0 (crash-preventing only), "
-                   "default (ERROR+WARNING, used when not given), "
-                   "full (adds INFO advisories)")
+                   "default (phase 1 and 2 rules), full (every rule, INFO "
+                   "listed). When omitted, every rule runs and INFO "
+                   "advisories are counted but not listed.")
 @click.option("--quiet", "-q", is_flag=True,
               help="Only show errors in text output (parity with qpdk-validate)")
 def validate(plugin_paths: tuple[str, ...], output_format: str, strict: bool,
-             qsys_version: str, ruleset: str, quiet: bool):
+             qsys_version: str, ruleset: str | None, quiet: bool):
     """Validate one or more Q-SYS plugin files.
 
     PLUGIN_PATHS: One or more .qplug files. Passing multiple files reuses a
@@ -54,16 +55,20 @@ def validate(plugin_paths: tuple[str, ...], output_format: str, strict: bool,
     \b
     Rulesets:
       P0      Only crash-preventing rules (ship-blocking)
-      default All ERROR + WARNING rules, INFO hidden (used when not given)
-      full    All rules including INFO-level advisories
+      default Phase 1 and 2 rules
+      full    Every rule, INFO advisories listed
+
+    With no --ruleset, every rule runs and INFO advisories are counted
+    but not listed.
     """
     from .validator import PluginValidator
 
     # One validator instance across all files so cross-file state (QPDK008
     # duplicate-Id detection) actually has something to compare against.
-    validator = PluginValidator(qsys_version=qsys_version, ruleset=ruleset)
+    hide_info = ruleset is None
+    validator = PluginValidator(qsys_version=qsys_version, ruleset=ruleset or "full")
     results = [validator.validate_file(p) for p in plugin_paths]
-    if ruleset.lower() != "full":
+    if hide_info:
         for r in results:
             r.hide_info()
 

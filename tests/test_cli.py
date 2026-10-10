@@ -466,3 +466,18 @@ class TestDefaultHidesInfo:
         path = _write(tmp_path, "info.qplug", _INFO_ONLY)
         res = CliRunner().invoke(cli_main, ["validate", path, "-r", "full", "-q"])
         assert "QPDK047" not in res.output
+
+
+def test_no_ruleset_keeps_phase3_warnings(tmp_path):
+    """Omitting --ruleset must not drop WARNING rules outside phases 1-2
+    (QPDK029, unprotected socket write, is phase 3)."""
+    from click.testing import CliRunner
+
+    from qpdk.cli import main as cli_main
+    src = _INFO_ONLY.replace("if Controls then", """if Controls then
+  sock = TcpSocket.New()
+  function Send(s) sock:Write(s) end""")
+    path = _write(tmp_path, "w.qplug", src)
+    res = CliRunner().invoke(cli_main, ["validate", path, "-f", "json"])
+    codes = {i["code"] for i in json.loads(res.output)["issues"]}
+    assert "QPDK029" in codes
