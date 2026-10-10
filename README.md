@@ -7,6 +7,9 @@ system, whether it will load, whether it is wired correctly, and whether it
 behaves when it runs. It was built to keep AI-written plugins honest, and it
 works just as well on plugins written by hand.
 
+QPDK is alpha software (0.x): rules, severities and mock behaviour may change
+between minor versions.
+
 ## What it checks, and what it doesn't
 
 QPDK makes sure what you deploy is **functional**: it loads in Designer, its
@@ -20,10 +23,12 @@ finish line: test on real hardware before you ship.
 
 ## What's inside
 
-- **Validator** (`qpdk validate`): 42 rules covering Lua syntax, plugin
+- **Validator** (`qpdk validate`): rules covering Lua syntax, plugin
   structure, control and layout coupling, design-time crash patterns, timer and
   socket lifecycle, logging API use, layout geometry and more. Optional
-  luacheck integration with a Q-SYS globals list.
+  luacheck integration with a Q-SYS globals list. `qpdk rules` lists every
+  rule with its severity and rulesets; see [docs/rules.md](docs/rules.md) for
+  rulesets, luacheck codes and how to silence a finding.
 - **Designer drag-in check** (`qpdk design-check`): runs the plugin's
   definition functions the way Designer does at drag-in, where `Controls` does
   not exist yet, and reports anything that would crash.
@@ -43,11 +48,11 @@ finish line: test on real hardware before you ship.
 
 Requires Python 3.10 or newer.
 
+QPDK is not on PyPI. `pip install qpdk` installs an unrelated package, so
+install from git (or use the GitHub Action below):
+
 ```bash
 pip install "git+https://github.com/NerdBase-by-Stark/qpdk.git"
-
-# optional extras
-pip install "qpdk[qrc] @ git+https://github.com/NerdBase-by-Stark/qpdk.git"   # QRC mock server
 ```
 
 For the `LUACHECK-*` rules, install [luacheck](https://github.com/lunarmodules/luacheck)
@@ -71,27 +76,85 @@ qpdk --help
 `qpdk test` fails when no test directory is found: a plugin with no tests is
 not a passing plugin.
 
-## Writing tests against the mock runtime
+## Writing a test suite
+
+`qpdk test` and the Action's `test-dir` run an ordinary pytest suite. QPDK
+installs a pytest plugin that gives each test a fresh mock runtime with your
+plugin loaded. You tell it which plugin to load by overriding the
+`qsys_harness` fixture in your `conftest.py`:
+
+```python
+# test/conftest.py
+from pathlib import Path
+
+import pytest
+from qpdk.testing import PluginHarness
+
+PLUGIN = Path(__file__).parent.parent / "release" / "MyPlugin-v1.0.0.qplug"
+
+
+@pytest.fixture(scope="session")
+def qsys_harness():
+    return PluginHarness(PLUGIN, property_defaults={"Initial State": False})
+```
+
+`PluginHarness` builds the control set (including arrays) from the plugin's
+own `GetControls`, so tests don't rot when controls change, and the plugin's
+lookup of a control it never declared returns nil.
+`property_defaults` sets the property values every test starts from; any
+property you don't list is missing in the mock, so list the ones your
+runtime code reads.
+
+Tests then ask for the `rt` fixture:
+
+```python
+# test/test_plugin.py
+import pytest
+
+
+def test_toggle_drives_state(rt):
+    rt.tick(1.0)                                   # run Timer callbacks
+    rt.controls["Toggle"].simulate_external_write(1)
+    assert rt.controls["State"].Boolean is True
+
+
+@pytest.mark.qsys_props(**{"Initial State": True})
+def test_initial_state_property(rt):
+    rt.tick(1.0)
+    assert rt.controls["State"].Boolean is True
+```
+
+- `@pytest.mark.qsys_props(...)` overrides properties for one test.
+- If the plugin raises an error inside a callback (timer, socket,
+  EventHandler) during a test, the test fails at teardown even when its own
+  assertions pass. Mark a test `@pytest.mark.qsys_expect_errors` when the
+  crash is what you are testing.
+- If a test asks for `rt` without the conftest override, it fails with a
+  message telling you to add one.
+
+Run it with `qpdk test release/MyPlugin-v1.0.0.qplug --test-dir test`, or
+plain `pytest test`.
+
+## Using the mock runtime directly
 
 ```python
 from qpdk.mock_runtime import QSYSRuntime
 
 runtime = QSYSRuntime()
-runtime.properties.set("IP Address", "192.168.1.100")
-runtime.controls.add_input("Connect", value=0)
-runtime.controls.add_output("Status", string="Disconnected")
-
-runtime.load_plugin("MyPlugin.qplug")
-
-runtime.controls.Inputs["Connect"].Boolean = True
+runtime.properties.set("Initial State", False)
+runtime.load_plugin("examples/good/simple-button.qplug")
 runtime.tick(1.0)   # advance virtual time so Timer callbacks fire
 
-assert runtime.controls.Outputs["Status"].String == "Connected"
+runtime.controls["Toggle"].simulate_external_write(1)
+assert runtime.controls["State"].Boolean is True
+assert not runtime.had_errors()
 ```
 
-For whole test suites, `qpdk.testing.PluginHarness` derives the controls
-(including arrays) from the plugin's own `GetControls`, and fails a test when
-the plugin raised an error inside a callback.
+Writing a control from Python (`runtime.controls["Toggle"].Value = 1`) does
+not fire the plugin's EventHandler, just as a script's own writes do not on a
+Core. Use `simulate_external_write(value)` or `simulate_trigger()` to stand in
+for a user or a wired pin. A bare `QSYSRuntime()` also creates any control
+name on demand; `PluginHarness` above is stricter and is the better default.
 
 To reproduce Designer's drag-in in a test:
 
@@ -135,6 +198,9 @@ reserved names and PluginInfo conventions. QPDK's own rules cover different
 ground: runtime behaviour, lifecycle patterns and layout geometry. Running both
 gives the widest net.
 
+It is stricter than Designer: plugins that load and run fine in the field can
+fail it, mostly on layout fields such as a missing `Style`.
+
 ```bash
 qpdk qsc-eval MyPlugin.qplug                 # default configuration
 qpdk qsc-eval MyPlugin.qplug --maxprops      # every property at its maximum
@@ -175,6 +241,8 @@ pip install -e ".[dev]"
 pytest
 ruff check qpdk/
 ```
+
+Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## Licence
 
