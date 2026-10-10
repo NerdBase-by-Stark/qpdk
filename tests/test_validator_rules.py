@@ -1157,7 +1157,7 @@ end
 # ---------------------------------------------------------------------------
 
 class TestQPDK031TimerMissingStop:
-    """One-shot timers require :Stop() in the EventHandler to prevent repeated firing."""
+    """A Timer repeats until stopped; a never-stopped timer is surfaced as INFO."""
 
     def test_timer_handler_no_stop_warns(self, v):
         """Timer EventHandler without :Stop() should produce QPDK031."""
@@ -1171,7 +1171,10 @@ if Controls then
 end
 """, "timer-nostop")
         result = v.validate_string(code)
-        assert any(i.code == "QPDK031" for i in result.issues)
+        hits = [i for i in result.issues if i.code == "QPDK031"]
+        # B5: a Timer repeats by default (Timer.htm), so this is advisory INFO.
+        assert hits and all(i.severity == IssueSeverity.INFO for i in hits)
+        assert "poll timer" in hits[0].message
 
     def test_timer_handler_with_stop_ok(self, v):
         """Timer EventHandler with :Stop() must NOT produce QPDK031."""
@@ -1370,7 +1373,9 @@ if Controls then
 end
 """
         result = v.validate_string(code)
-        assert any(i.code == "QPDK035" for i in result.issues)
+        hits = [i for i in result.issues if i.code == "QPDK035"]
+        # B4: advisory INFO; the re-entrancy claim is not in the Q-SYS docs.
+        assert hits and all(i.severity == IssueSeverity.INFO for i in hits)
 
     def test_message_is_de_fabricated_and_hedged(self, v):
         """Round 4: the QPDK035 message must NOT assert the unverified

@@ -1372,8 +1372,10 @@ class PluginValidator:
     def _validate_timer_missing_stop(self, content: str, result: ValidationResult) -> None:
         """Detect Timer EventHandlers that don't call :Stop().
 
-        QPDK031: One-shot timer pattern requires :Stop() as first statement
-        in the EventHandler. Without it the timer continues firing.
+        QPDK031 (advisory INFO): a Timer repeats by default until :Stop() is
+        called (Timer.htm). That is right for a poll timer and wrong for a
+        one-shot, so a timer that is never stopped is surfaced for the author
+        to confirm, not reported as a defect.
         Heuristic: Flag timers whose EventHandler bodies contain no :Stop() call.
 
         Exception: If :Stop() is called on the same timer variable elsewhere
@@ -1418,11 +1420,11 @@ class PluginValidator:
                     if external_stop_re.search(content_outside_handler):
                         continue  # Externally-managed repeating timer — skip
 
-                    result.add_warning(
+                    result.add_info(
                         self.TIMER_MISSING_STOP,
-                        f"Timer '{timer_name}' EventHandler has no :Stop() call. "
-                        "Single-shot timers should call :Stop() at the start of the "
-                        "EventHandler to prevent repeated firing.",
+                        f"Timer '{timer_name}' is never stopped, so it repeats. Fine "
+                        "for a poll timer; a one-shot should call :Stop() in its "
+                        "EventHandler.",
                         line=handler_start
                     )
 
@@ -1500,13 +1502,12 @@ class PluginValidator:
         and an output pin, so it can be wired to an external source AND written
         from Lua. Writing — from a Timer or EventHandler — a control the plugin
         also subscribes to risks a feedback loop / re-entrant EventHandler (the
-        "room-mute-on-disconnect" bug class). This is a HEDGED warning, NOT an
-        assertion of a hard framework rule: the exact runtime behavior is
-        unverified on hardware (cf. the retired-QPDK038 fabrication lesson). It
-        flags the pattern so the author can confirm the write is intentional
-        (e.g. a write-once config field that is never written back — see the
-        plugin's v2.6.0 split-control spec §3.9) or convert the control to a
-        split input/output pair.
+        "room-mute-on-disconnect" bug class). This is an advisory INFO, not an
+        assertion of a hard framework rule: the Q-SYS docs are silent on
+        whether a script write re-fires the handler, and writing feedback to a
+        Both-pin control is common in vendor plugins. It flags the pattern so
+        the author can confirm the write is intentional (e.g. a write-once
+        config field) or convert the control to a split input/output pair.
 
         PinStyle is harvested from BOTH places it can be declared:
           1. GetControls control blocks: ``{ Name="x", ..., PinStyle="Both" }``
@@ -1575,7 +1576,7 @@ class PluginValidator:
                     continue
                 code_part = line.split("--")[0]
                 if write_re.search(code_part):
-                    result.add_warning(
+                    result.add_info(
                         self.PINSTYLE_BOTH_WRITE,
                         f"Control '{ctrl_name}' has PinStyle=\"Both\" and a Lua value write. "
                         "Writing a Both-pin control the plugin also subscribes to can create "

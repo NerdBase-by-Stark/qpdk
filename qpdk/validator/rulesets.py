@@ -72,13 +72,16 @@ RULE_METADATA: dict[str, dict] = {
     "QPDK027": {"severity": IssueSeverity.WARNING, "phase": 3, "category": "structure",  "description": "Duplicate property name"},
     "QPDK029": {"severity": IssueSeverity.WARNING, "phase": 3, "category": "safety",     "description": "SSH/TCP Write without pcall"},
     # NOTE: severity here must match what the rule actually emits in validator.py
-    # (the emit-time severity is authoritative). QPDK031/032/037 emit WARNING
-    # (matured per the phase-3 INFO->WARNING rollout), so metadata says WARNING.
-    "QPDK031": {"severity": IssueSeverity.WARNING, "phase": 3, "category": "timer",      "description": "Timer EventHandler missing Stop()"},
+    # (the emit-time severity is authoritative).
+    # QPDK031 is INFO: a Timer repeats by default (Timer.htm), so a timer that
+    # is never stopped is correct for polling and only wrong for a one-shot.
+    "QPDK031": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "timer",      "description": "Timer never stopped (fine for polling, wrong for a one-shot)"},
     "QPDK032": {"severity": IssueSeverity.WARNING, "phase": 3, "category": "safety",     "description": "Poll without connection guard"},
     "QPDK033": {"severity": IssueSeverity.WARNING, "phase": 3, "category": "security",   "description": "xAPI string injection risk"},
     "QPDK034": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "complexity",  "description": "Monolithic function (>100 lines; >500 for framework API functions)"},
-    "QPDK035": {"severity": IssueSeverity.WARNING, "phase": 3, "category": "framework",  "description": "PinStyle Both written from Lua (possible feedback loop)"},
+    # QPDK035 is INFO: the docs are silent on whether a script write re-fires
+    # the handler, and vendor plugins write feedback to Both-pin controls.
+    "QPDK035": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "framework",  "description": "PinStyle Both written from Lua (possible feedback loop)"},
     "QPDK036": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "framework",  "description": "Dual-context write to indicator"},
     "QPDK037": {"severity": IssueSeverity.WARNING, "phase": 3, "category": "framework",  "description": "Missing monitor mode guard"},
     # QPDK038 (Reflect/StatusGP "clamps Value 4") intentionally NOT shipped:

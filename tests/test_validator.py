@@ -305,7 +305,7 @@ class TestQPDK035GetControlsScope:
             "end\n"
         )
         result = validator.validate_string(code)
-        assert any(i.code == "QPDK035" for i in result.warnings)
+        assert any(i.code == "QPDK035" for i in result.infos)
 
     def test_pinstyle_both_dot_notation_write_is_detected(self, validator):
         code = (
@@ -321,7 +321,7 @@ class TestQPDK035GetControlsScope:
             "end\n"
         )
         result = validator.validate_string(code)
-        assert any(i.code == "QPDK035" for i in result.warnings)
+        assert any(i.code == "QPDK035" for i in result.infos)
 
     def test_output_pin_not_flagged(self, validator):
         """Negative control: PinStyle='Output' must not fire QPDK035."""
