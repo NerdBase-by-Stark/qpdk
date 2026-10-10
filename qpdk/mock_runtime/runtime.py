@@ -221,8 +221,8 @@ class QSYSRuntime:
         self.http_requests: list[tuple[str, Any]] = []
 
         # Lua runtime (lazy init)
-        self._lua = None
-        self._lua_globals = None
+        self._lua: Any = None
+        self._lua_globals: Any = None
 
         # Print capture
         self._print_output: list[str] = []
