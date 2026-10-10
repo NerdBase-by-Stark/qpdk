@@ -481,3 +481,16 @@ def test_no_ruleset_keeps_phase3_warnings(tmp_path):
     res = CliRunner().invoke(cli_main, ["validate", path, "-f", "json"])
     codes = {i["code"] for i in json.loads(res.output)["issues"]}
     assert "QPDK029" in codes
+
+
+def test_qsc_eval_strict_warning_is_not_shown_as_ok(tmp_path):
+    """Under --strict a QSC warning fails the run, so the row must not say OK."""
+    from click.testing import CliRunner
+
+    from qpdk.cli import main as cli_main
+    src = _INFO_ONLY.replace('Id = "test.info-only" }',
+                             'Id = "test.info-only", Author = "Test" }')
+    path = _write(tmp_path, "q.qplug", src)  # no Manufacturer: a QSC warning only
+    res = CliRunner().invoke(cli_main, ["qsc-eval", path, "--strict"])
+    assert res.exit_code == 1
+    assert res.output.lstrip().startswith("FAIL")

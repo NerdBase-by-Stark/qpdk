@@ -380,7 +380,8 @@ def qsc_eval(plugin_paths: tuple[str, ...], output_format: str, maxprops: bool,
                 console.print(f"[red]CRASH[/red] {path}: design-time code failed under Lua 5.3:")
                 click.echo(f"  {r.crash}")
                 continue
-            state = "[red]FAIL[/red]" if r.errors else "[green]OK[/green]  "
+            state = ("[red]FAIL[/red]" if r.errors or (strict and r.warnings)
+                     else "[green]OK[/green]  ")
             console.print(f"{state} {path}: {len(r.errors)} error(s), "
                           f"{len(r.warnings)} warning(s), {len(r.notices)} notice(s)")
             for e in r.errors:
