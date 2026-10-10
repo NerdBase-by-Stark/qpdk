@@ -66,7 +66,7 @@ def _property_variants(report) -> list[dict]:
     One run with every numeric property at its Max and every boolean true,
     then one run per single-property change: each enum choice, the boolean
     flipped, a numeric at Min and at Max. Enough to surface controls a
-    property switches on (cisco-modular's widget controls) without a full
+    property switches on (e.g. optional widget controls) without a full
     combinatorial sweep.
     """
     variants: list[dict] = []
@@ -227,7 +227,7 @@ def scalar_as_array(raw: str, refs: list[ControlRef],
             continue
         # A short window each side is enough to see #, [ and ipairs( ... ),
         # and keeps this linear in file size (slicing the whole prefix per
-        # reference was quadratic: 1 s on cisco-modular's 540 references).
+        # reference was quadratic: 1 s on a plugin with 540 references).
         before = raw[max(0, r.start - 64):r.start].rstrip()
         after = raw[r.end:r.end + 64].lstrip()
         always = declared.max_count.get(r.name, 1) <= 1

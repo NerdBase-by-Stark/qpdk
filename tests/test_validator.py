@@ -191,8 +191,7 @@ class TestValidationResult:
 
 
 class TestEngineHardening:
-    """Regression tests for the 2026-06-02 engine audit fixes
-    (see internal notes)."""
+    """Regression tests for validator engine hardening fixes."""
 
     HEADER = (
         'PluginInfo = {{ Name = "T~H", Version = "1.0.0", Id = {id} }}\n'
@@ -444,7 +443,7 @@ class TestQPDK039PlaceholderStyles:
 
 
 class TestQPDK013DynamicLayoutKeys:
-    """Round 3 (peer-reported): QPDK013 must recognize controls laid out via a
+    """QPDK013 must recognize controls laid out via a
     dynamic concat key `layout["base " .. i]` even when the control has no Count,
     while still flagging genuine orphans (typo WARNING) and truly layout-less
     controls (INFO)."""
@@ -486,7 +485,7 @@ class TestQPDK013DynamicLayoutKeys:
         assert any(i.code == "QPDK013" and i.severity == IssueSeverity.WARNING
                    for i in result.issues)
 
-    # --- Round 4: FP guard 4 — PinStyle="Output"/"None" controls are
+    # --- FP guard 4 — PinStyle="Output"/"None" controls are
     #     panel-less by design, so a missing layout must NOT draw an INFO. ---
 
     def test_pinstyle_output_no_layout_not_flagged(self, validator):

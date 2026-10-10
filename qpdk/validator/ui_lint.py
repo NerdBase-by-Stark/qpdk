@@ -10,8 +10,6 @@ Every threshold is corpus-mined and locked by tests/test_ui_lint.py:
   5 confirmed QPDK042 right-edge overflows.
 - Rules with no corpus true-positive are invariants ("never occurs in a
   working plugin") locked by mutation tests.
-Provenance, fragility notes, and the DO-NOT-BUILD list live in
-internal notes Part 1.
 
 Limitations (by design): rules see the DEFAULT property configuration's
 layout only; evaluated tables carry no source line numbers (findings carry
@@ -21,7 +19,7 @@ geometry defect in this family was shown to break plugin load.
 
 from typing import Any
 
-# Corpus-observed Style strings (build spec §1.4). "None" is the shipped
+# Corpus-observed Style strings. "None" is the shipped
 # pin-only idiom (1,159 production occurrences) — REQUIRED member; Led/LED
 # both ship. APPEND when the corpus grows; never treat as closed/authoritative.
 UI_LINT_VOCABULARY = frozenset({
