@@ -10,9 +10,13 @@ Phases:
   Phase 3: advisory rules (full only)
 
 Rulesets:
-  P0:      Only crash-preventing rules (ship-blocking)
-  default: All ERROR + WARNING rules (skip INFO)
-  full:    All rules including INFO-level advisories
+  P0:      Only crash-preventing rules (phase 1)
+  default: Crash-preventing and quality rules (phases 1 and 2); INFO rows
+           from those rules are listed
+  full:    Every rule, INFO advisories listed
+
+With no --ruleset the CLI runs every rule (as full) and hides INFO rows,
+printing a count instead.
 """
 
 from .result import IssueSeverity
@@ -42,13 +46,13 @@ RULE_METADATA: dict[str, dict] = {
     # the pattern. StateTrigger is excluded (State_Trigger.htm: it DOES expose
     # an input pin). Promote only after a bench probe confirms it.
     "QPDK011": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "framework",  "description": "Button ButtonType=Trigger with input PinStyle (Input/Both)"},
-    # F6 — emits WARNING (orphaned layout key / likely typo) + INFO (control with
+    # Emits WARNING (orphaned layout key / likely typo) + INFO (control with
     # no layout entry). Phase 3 so the advisory INFO direction is full-only.
     # Never ERROR (load-breaking severity of an orphaned key is KB-unverified).
-    "QPDK013": {"severity": IssueSeverity.WARNING, "phase": 3, "category": "structure",  "description": "GetControls<->GetControlLayout key coupling (Name mismatch)"},
+    "QPDK013": {"severity": IssueSeverity.WARNING, "phase": 3, "category": "structure",  "description": "GetControls and GetControlLayout names do not match: WARNING for a layout key with no control, INFO for a control with no layout entry"},
 
     # --- P0 crash-preventing ---
-    "QPDK005": {"severity": IssueSeverity.WARNING, "phase": 1, "category": "scoping",    "description": "Library object GC risk (local scope)"},
+    "QPDK005": {"severity": IssueSeverity.WARNING, "phase": 1, "category": "scoping",    "description": "Timer, socket or component object held only in a local variable may be garbage collected"},
     "QPDK020": {"severity": IssueSeverity.ERROR,   "phase": 1, "category": "api",        "description": "Call to a non-existent Q-SYS API function (Log.Warning/Log.Debug, Timer.Create)"},
     # Inverse of QPDK025: a runtime-only global (Controls/Component/Timer/...)
     # indexed INSIDE a design-time GetX body. ERROR for Controls (a reproduced
@@ -77,13 +81,13 @@ RULE_METADATA: dict[str, dict] = {
     # is never stopped is correct for polling and only wrong for a one-shot.
     "QPDK031": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "timer",      "description": "Timer never stopped (fine for polling, wrong for a one-shot)"},
     "QPDK032": {"severity": IssueSeverity.WARNING, "phase": 3, "category": "safety",     "description": "Poll without connection guard"},
-    "QPDK033": {"severity": IssueSeverity.WARNING, "phase": 3, "category": "security",   "description": "xAPI string injection risk (Cisco xAPI plugins using sendData only)"},
+    "QPDK033": {"severity": IssueSeverity.WARNING, "phase": 3, "category": "security",   "description": "xAPI string injection risk (checks calls to sendData, as Cisco xAPI plugins use)"},
     "QPDK034": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "complexity",  "description": "Monolithic function (>100 lines; >500 for framework API functions)"},
     # QPDK035 is INFO: the docs are silent on whether a script write re-fires
     # the handler, and vendor plugins write feedback to Both-pin controls.
     "QPDK035": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "framework",  "description": "PinStyle Both written from Lua (possible feedback loop)"},
     "QPDK036": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "framework",  "description": "Dual-context write to indicator"},
-    "QPDK037": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "framework",  "description": "Missing monitor mode guard (Cisco xAPI plugins using sendData/monitor_mode only)"},
+    "QPDK037": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "framework",  "description": "Missing monitor mode guard (only checks plugins that use sendData and a monitor_mode variable, as Cisco xAPI plugins do)"},
     # QPDK038 (Reflect/StatusGP "clamps Value 4") intentionally NOT shipped:
     # the Value-4->3 clamp claim is unverified, and the pattern ships in
     # field-deployed plugins. Re-introduce only once confirmed on real hardware.
@@ -91,7 +95,7 @@ RULE_METADATA: dict[str, dict] = {
     # DO-NOT-BUILD non-goals (recorded here so nobody repeats the QPDK038
     # pattern of an ungrounded rule; the Q-SYS docs cannot ground any of these):
     #   1. xAPI command-EXISTENCE / known-command allowlist. The catalog is
-    #      doc-parse noise and version-merged across RoomOS releases — a
+    #      doc-parse noise and version-merged across RoomOS releases, so a
     #      "this xCommand does not exist" rule would false-flag valid commands.
     #   2. xAPI DEPRECATION / RoomOS-version-gating rule. The KB carries no
     #      per-command version provenance, so any "deprecated/added in vX"
@@ -101,36 +105,36 @@ RULE_METADATA: dict[str, dict] = {
     #      only `Led`, while field-working plugins ship `LED`), so an
     #      enum-membership rule would flag working plugins. (QPDK011 deliberately matches ButtonType="Trigger"
     #      EXACTLY rather than validating the whole enum.)
-    "QPDK039": {"severity": IssueSeverity.ERROR,   "phase": 1, "category": "build",      "description": "Unsubstituted build-template placeholder"},
+    "QPDK039": {"severity": IssueSeverity.ERROR,   "phase": 1, "category": "build",      "description": "Placeholder text such as {{VERSION}} or __VERSION__ left in a PluginInfo field"},
 
     # --- UI-LINT family (QPDK040+): geometry lint over the EVALUATED
-    # GetControlLayout — runs in the design-time path (qpdk design-check /
+    # GetControlLayout. Runs in the design-time path (qpdk design-check /
     # qpdk.validator.ui_lint), NOT inside the static PluginValidator, because
     # positions only exist after executing the layout function. Thresholds
     # are mined from a corpus of shipped plugins. Severity ceiling
     # WARNING: no geometry defect in this family breaks plugin load.
-    "QPDK040": {"severity": IssueSeverity.WARNING, "phase": 2, "category": "ui-geometry", "description": "design-check only: Controls overlap on the same page (zero overlaps ship in the corpus)"},
+    "QPDK040": {"severity": IssueSeverity.WARNING, "phase": 2, "category": "ui-geometry", "description": "design-check only: Controls overlap on the same page"},
     "QPDK041": {"severity": IssueSeverity.WARNING, "phase": 2, "category": "ui-geometry", "description": "design-check only: Zero or negative control/graphic dimension"},
-    "QPDK042": {"severity": IssueSeverity.WARNING, "phase": 2, "category": "ui-geometry", "description": "design-check only: Control extends >6px past the page background span (Header/GroupBox proxy)"},
+    "QPDK042": {"severity": IssueSeverity.WARNING, "phase": 2, "category": "ui-geometry", "description": "design-check only: Control extends more than 6 px past the page background"},
     "QPDK043": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "ui-geometry", "description": "design-check only: Control rect straddles an origin axis (partially off-canvas)"},
-    "QPDK044": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "ui-geometry", "description": "design-check only: Non-integral Position/Size component (un-floored arithmetic)"},
-    "QPDK045": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "ui-typo",     "description": "design-check only: Style string outside the corpus-verified vocabulary (possible typo)"},
-    "QPDK046": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "ui-geometry", "description": "design-check only: Control dimension below the smallest shipped on-canvas control (14px)"},
-    # QPDK047 — advisory only (phase 3 / full ruleset). PluginInfo.Manufacturer is
+    "QPDK044": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "ui-geometry", "description": "design-check only: Position or Size is not a whole number"},
+    "QPDK045": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "ui-typo",     "description": "design-check only: Style string is not a known Q-SYS style name (possible typo)"},
+    "QPDK046": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "ui-geometry", "description": "design-check only: Control is smaller than 14 px, the smallest control seen in shipped plugins"},
+    # QPDK047: advisory only (phase 3 / full ruleset). PluginInfo.Manufacturer is
     # a managed-submission convention QSC's own evaluator warns on; the vendor
     # corpus shows 0/19 real plugins set it, so INFO (not WARNING) is the honest
-    # calibration — surfaced in `full`, silent in `default`.
-    "QPDK047": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "structure",  "description": "PluginInfo.Manufacturer not set (managed-submission convention)"},
-    # QPDK048 — structural validation of an encrypted .qplugx/.qplugx2 artifact
+    # calibration: surfaced in `full`, silent in `default`.
+    "QPDK047": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "structure",  "description": "PluginInfo.Manufacturer not set (QSC's evaluator warns when it is missing)"},
+    # QPDK048: structural validation of an encrypted .qplugx/.qplugx2 artifact
     # (envelope JSON shape, base64 + length invariants; NO decryption). Phase 1
-    # so it runs in every ruleset — a malformed encrypted artifact is broken
+    # so it runs in every ruleset: a malformed encrypted artifact is broken
     # regardless of level. Only fires for .qplugx/.qplugx2 files.
     "QPDK048": {"severity": IssueSeverity.ERROR,   "phase": 1, "category": "structure",  "description": "Malformed .qplugx/.qplugx2 encryption envelope"},
-    # QPDK049/050 — control references checked against the EVALUATED GetControls
+    # QPDK049/050: control references checked against the EVALUATED GetControls
     # (design-time mode, default properties). Both are load/run crashes on a
     # Core, so ERROR in every ruleset. Literal names only; see control_refs.py.
     "QPDK049": {"severity": IssueSeverity.ERROR,   "phase": 1, "category": "api",        "description": "Controls reference to a name GetControls does not declare (nil on a Core)"},
-    "QPDK050": {"severity": IssueSeverity.ERROR,   "phase": 1, "category": "api",        "description": "Count=1 control used as an array (#, [i] or ipairs): ERROR if single in every configuration, WARNING if a property can make it an array"},
+    "QPDK050": {"severity": IssueSeverity.ERROR,   "phase": 1, "category": "api",        "description": "Count=1 control used as an array (indexed with #, [i] or ipairs): ERROR if single in every configuration, WARNING if a property can make it an array"},
 }
 
 

@@ -56,7 +56,7 @@ class PluginValidator:
     MONITOR_MODE_GUARD = "QPDK037"
     # QPDK038 (REFLECT_STATUSGP) held back — unverified framework claim. See rulesets.py.
     BUILD_TEMPLATE_UNSUBSTITUTED = "QPDK039"
-    PLUGININFO_MANUFACTURER = "QPDK047"  # advisory: Manufacturer not set (managed-submission convention)
+    PLUGININFO_MANUFACTURER = "QPDK047"  # advisory: Manufacturer not set (QSC's evaluator warns on it)
     QPLUGX_STRUCTURE = "QPDK048"  # encrypted .qplugx/.qplugx2 artifact structural check
     UNDECLARED_CONTROL = "QPDK049"  # Controls ref to a name GetControls never declares (nil on a Core)
     SCALAR_AS_ARRAY = "QPDK050"     # Count=1 control used with #, [i] or ipairs (userdata, not a table)
@@ -495,8 +495,8 @@ class PluginValidator:
                 result.add_info(
                     "QPDK000",
                     "lupa has no lua53 build; QPDK001 compiled under a "
-                    "different Lua version than the Q-SYS Core (5.3) — "
-                    "results may be version-skewed.",
+                    "different Lua version than the Q-SYS Core (5.3), so "
+                    "results may differ from a Core.",
                 )
             lua = LuaRuntime(unpack_returned_tuples=True)
 
@@ -593,8 +593,8 @@ class PluginValidator:
                     if self._BUILD_TEMPLATE_PATTERN.match(raw):
                         result.add_error(
                             self.BUILD_TEMPLATE_UNSUBSTITUTED,
-                            f"Unsubstituted build-template placeholder in PluginInfo.{field}: "
-                            f"'{raw}' — build pipeline must replace this token before producing the .qplug",
+                            f"Placeholder text left in PluginInfo.{field}: '{raw}'. "
+                            f"Replace it with the real value before shipping the .qplug",
                         )
 
         # Validate specific fields (QPDK004 — only emit if rule is active).
@@ -640,8 +640,8 @@ class PluginValidator:
         if self._is_rule_active("QPDK047") and "Manufacturer" not in plugin_info:
             result.add_info(
                 self.PLUGININFO_MANUFACTURER,
-                "PluginInfo.Manufacturer not set — recommended for Q-SYS Library / "
-                "Asset Manager vendor identification (managed-submission convention)"
+                "PluginInfo.Manufacturer not set (QSC's evaluator warns when it "
+                "is missing)"
             )
 
     def _validate_duplicate_plugin_id(self, content: str, result: ValidationResult) -> None:
@@ -670,7 +670,7 @@ class PluginValidator:
             first_seen = self._seen_plugin_ids[plugin_id]
             result.add_warning(
                 self.DUPLICATE_PLUGIN_ID,
-                f"Duplicate plugin Id '{plugin_id}' — first seen in {first_seen}",
+                f"Duplicate plugin Id '{plugin_id}': first seen in {first_seen}",
                 line=line_num,
             )
         else:
@@ -724,7 +724,7 @@ class PluginValidator:
                     result.add_warning(
                         self.VERSION_API,
                         f"'{global_name}' is annotated for a newer Q-SYS version and "
-                        f"may not be available in v{self.qsys_version} — {desc}",
+                        f"may not be available in v{self.qsys_version}: {desc}",
                         line=line_num,
                     )
                     flagged.add(global_name)
@@ -921,7 +921,7 @@ class PluginValidator:
             result.add_warning(
                 self.RAPIDJSON_REQUIRE,
                 "rapidjson is used but require('rapidjson') not found. "
-                "rapidjson is not a global — it must be explicitly required."
+                "rapidjson is not a global; it must be explicitly required."
             )
 
     # Positional pass: APIs whose top-level execution at design time is the
@@ -1159,7 +1159,7 @@ class PluginValidator:
                 result.add_warning(
                     self.TONUMBER_NIL_GUARD,
                     "tonumber() result used without nil guard. "
-                    "tonumber() returns nil on invalid input — use 'tonumber(x) or 0' fallback.",
+                    "tonumber() returns nil on invalid input; use a 'tonumber(x) or 0' fallback.",
                     line=line_num
                 )
 
@@ -1848,7 +1848,7 @@ class PluginValidator:
             result.add_info(
                 self.TRIGGER_INPUT_PIN,
                 f"Button '{name}' uses ButtonType=Trigger with "
-                f"PinStyle={pstyle_m.group(1)} — Trigger buttons are typically "
+                f"PinStyle={pstyle_m.group(1)}. Trigger buttons are typically "
                 "Lua-driven, not pin-driven; prefer ButtonType=Momentary for pin "
                 "actions. (Unverified on hardware.)",
                 line=line_num,
@@ -2112,7 +2112,7 @@ class PluginValidator:
             result.add_warning(
                 self.CONTROL_LAYOUT_COUPLING,
                 f"GetControlLayout key '{key}' has no matching control Name in "
-                "GetControls — likely a typo (the layout entry will not bind to a "
+                "GetControls: likely a typo (the layout entry will not bind to a "
                 "control).",
                 line=ln,
             )
@@ -2136,7 +2136,7 @@ class PluginValidator:
                 continue
             result.add_info(
                 self.CONTROL_LAYOUT_COUPLING,
-                f"Control '{name}' has no GetControlLayout entry — it will not "
+                f"Control '{name}' has no GetControlLayout entry, so it will not "
                 "appear on the plugin panel (this is fine for pin-only/backend "
                 "controls).",
                 line=ln,

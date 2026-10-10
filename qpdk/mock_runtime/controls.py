@@ -251,7 +251,7 @@ class MockControl:
         if self._write_fire_depth >= self.WRITE_FIRE_DEPTH_CAP:
             msg = (f"write-cascade depth cap ({self.WRITE_FIRE_DEPTH_CAP}) on "
                    f"{self.name}: a handler keeps re-writing firing controls "
-                   "— unguarded Both-pin write (echo loop)")
+                   "(unguarded Both-pin write, an echo loop)")
             if self.error_sink is not None:
                 self.error_sink.append(msg)
             print(msg)

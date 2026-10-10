@@ -38,12 +38,12 @@ def main():
 @click.option("--ruleset", "-r", "ruleset",
               type=click.Choice(["P0", "default", "full"], case_sensitive=False),
               default=None,
-              help="Rule set to apply: P0 (crash-preventing only), "
-                   "default (phase 1 and 2 rules), full (every rule, INFO "
-                   "listed). When omitted, every rule runs and INFO "
-                   "advisories are counted but not listed.")
+              help="Rule set to apply: P0 (crash-preventing rules only), "
+                   "default (crash-preventing and quality rules, INFO listed), "
+                   "full (every rule, INFO listed). When omitted, every rule "
+                   "runs and INFO advisories are counted but not listed.")
 @click.option("--quiet", "-q", is_flag=True,
-              help="Only show errors in text output (parity with qpdk-validate)")
+              help="Only show errors in text output")
 def validate(plugin_paths: tuple[str, ...], output_format: str, strict: bool,
              qsys_version: str, ruleset: str | None, quiet: bool):
     """Validate one or more Q-SYS plugin files.
@@ -54,12 +54,17 @@ def validate(plugin_paths: tuple[str, ...], output_format: str, strict: bool,
 
     \b
     Rulesets:
-      P0      Only crash-preventing rules (ship-blocking)
-      default Phase 1 and 2 rules
+      (none)  Every rule runs; errors and warnings listed, INFO counted
+      P0      Only crash-preventing rules
+      default Crash-preventing and quality rules, INFO listed
       full    Every rule, INFO advisories listed
 
-    With no --ruleset, every rule runs and INFO advisories are counted
-    but not listed.
+    --ruleset default is not the same as leaving the flag off: it skips the
+    advisory rules and lists INFO rows. Run `qpdk rules` to see each rule's
+    rulesets.
+
+    Exit codes: 0 = no errors, 1 = at least one error, 2 = warnings under
+    --strict, or a usage error.
     """
     from .validator import PluginValidator
 
@@ -91,7 +96,7 @@ def validate(plugin_paths: tuple[str, ...], output_format: str, strict: bool,
             click.echo(result.to_tap())
     else:
         for result in results:
-            result.print_rich(console, show_warnings=not quiet)
+            result.print_rich(console, show_warnings=not quiet, strict=strict)
             console.print()
 
     # Exit code: 0 = success, 1 = errors, 2 = warnings (strict mode)
@@ -102,8 +107,9 @@ def validate(plugin_paths: tuple[str, ...], output_format: str, strict: bool,
 
 
 @main.command()
-@click.option("--port", "-p", default=1710, help="Port to listen on")
-@click.option("--host", "-h", "host", default="127.0.0.1", help="Host to bind to")
+@click.option("--port", "-p", default=1710, show_default=True, help="Port to listen on")
+@click.option("--host", "-h", "host", default="127.0.0.1", show_default=True,
+              help="Host to bind to")
 @click.option("--record", "-r", type=click.Path(), help="Record responses to file")
 @click.option("--playback", type=click.Path(exists=True), help="Playback recorded responses")
 def qrc(port: int, host: str, record: str | None, playback: str | None):
@@ -139,11 +145,15 @@ def design_check(plugin_paths: tuple[str, ...], output_format: str):
 
     Runs each plugin in the mock runtime's design-time mode (Controls nil)
     and calls its definition functions (GetProperties/GetControls/
-    GetControlLayout/...). Catches the crash class static rules can only
-    approximate — a nonzero exit means the plugin would crash Q-SYS Designer
+    GetControlLayout/...). Catches the crashes static rules can only
+    approximate. A nonzero exit means the plugin would crash Q-SYS Designer
     when dragged into a schematic.
 
-    Exit codes: 0 = all plugins clean, 1 = design-time errors found.
+    Also prints the layout findings QPDK040 to QPDK046 (overlaps, zero sizes,
+    off-page controls). They are advisory and do not change the exit code.
+
+    Exit codes: 0 = no design-time errors, 1 = a plugin would crash Designer,
+    2 = usage error.
     """
     from pathlib import Path as _Path
 
@@ -158,7 +168,7 @@ def design_check(plugin_paths: tuple[str, ...], output_format: str):
         except UnicodeDecodeError:
             code = raw.decode("latin-1")
         report = QSYSRuntime(design_time=True).run_design_time(code)
-        # UI-LINT (QPDK040-046) over every page that evaluated cleanly —
+        # UI-LINT (QPDK040-046) over every page that evaluated cleanly;
         # crashed pages are already reported as errors above; geometry
         # findings are advisory (WARNING ceiling) and never flip the exit.
         results.append({
@@ -175,7 +185,7 @@ def design_check(plugin_paths: tuple[str, ...], output_format: str):
     else:
         for r in results:
             if r["errors"]:
-                console.print(f"[red]FAIL[/red] {r['plugin']} — would crash Designer at drag-in:")
+                console.print(f"[red]FAIL[/red] {r['plugin']}: would crash Designer at drag-in:")
                 for e in r["errors"]:
                     click.echo(f"  {e}")
             else:
@@ -192,7 +202,7 @@ def design_check(plugin_paths: tuple[str, ...], output_format: str):
 @click.option("--format", "-f", "output_format",
               type=click.Choice(["table", "json"]),
               default="table",
-              help="Output format for the rule catalog")
+              help="Output format for the rule catalogue")
 def rules(output_format: str):
     """List every validator rule with its severity, rulesets and description.
 
@@ -217,9 +227,11 @@ def rules(output_format: str):
         click.echo(json.dumps({"rules": catalog}, indent=2))
         return
 
+    from rich.markup import escape
     from rich.table import Table
 
-    table = Table(title=f"QPDK validator rules ({len(catalog)})")
+    table = Table(title=f"QPDK validator rules ({len(catalog)})",
+                  caption="Phase: 1 = crash-preventing, 2 = quality, 3 = advisory")
     table.add_column("Code", no_wrap=True)
     table.add_column("Severity")
     table.add_column("Phase", justify="center")
@@ -227,8 +239,11 @@ def rules(output_format: str):
     table.add_column("Category")
     table.add_column("Description")
     for entry in catalog:
+        # escape(): descriptions contain text such as "[i]" that rich would
+        # otherwise read as markup and drop from the table.
         table.add_row(entry["code"], entry["severity"], str(entry["phase"]),
-                      ",".join(entry["rulesets"]), entry["category"], entry["description"])
+                      ",".join(entry["rulesets"]), entry["category"],
+                      escape(entry["description"]))
     console.print(table)
 
 
@@ -269,8 +284,8 @@ def test(plugin_path: str, test_dir: str | None, coverage: bool):
 
     Locates the test directory (--test-dir, else `test/` or `tests/` next to
     the plugin file or in its repo root), runs pytest there, and exits with
-    pytest's exit code. Exits non-zero if no test directory is found —
-    a plugin with no tests is NOT a passing plugin.
+    pytest's exit code. Exits with code 2 if no test directory is found:
+    a plugin with no tests is not a passing plugin.
     """
     import importlib.util
     import subprocess
@@ -330,15 +345,16 @@ def qsc_eval(plugin_paths: tuple[str, ...], output_format: str, maxprops: bool,
              props: tuple[str, ...], exceptions_path: str | None, strict: bool):
     """Run QSC's official Plugin-Evaluation-Script (vendored, MIT).
 
-    Executes the plugin's design-time code with Lua 5.3 — the interpreter the
-    upstream repo states Q-SYS Designer uses — and validates the returned
-    Properties/Controls/Layout tables against the official SDK vocabulary,
-    reserved names, PluginInfo canon, and layout<->controls coupling. This is
-    the authority-side complement to `qpdk validate` (static + runtime rules):
-    it sees loop-generated control names that static coupling checks cannot.
+    Executes the plugin's design-time code with Lua 5.3 (the interpreter the
+    upstream repo states Q-SYS Designer uses) and checks the returned
+    Properties, Controls and Layout tables against the official SDK
+    vocabulary, reserved names, PluginInfo conventions, and the match between
+    layout and controls. It complements `qpdk validate`: QSC's script checks
+    the design-time output, QPDK's rules check the source and runtime, and it
+    sees loop-generated control names that static checks cannot.
 
     Exit codes: 0 = no QSC errors, 1 = errors (or warnings with --strict),
-    2 = the plugin's design-time code crashed under Lua 5.3.
+    2 = the plugin's design-time code crashed under Lua 5.3, or a usage error.
     """
     from .qsc_eval import run_qsc_eval
 
@@ -361,11 +377,11 @@ def qsc_eval(plugin_paths: tuple[str, ...], output_format: str, maxprops: bool,
 
         if output_format == "text":
             if r.crash:
-                console.print(f"[red]CRASH[/red] {path} — design-time code failed under Lua 5.3:")
+                console.print(f"[red]CRASH[/red] {path}: design-time code failed under Lua 5.3:")
                 click.echo(f"  {r.crash}")
                 continue
             state = "[red]FAIL[/red]" if r.errors else "[green]OK[/green]  "
-            console.print(f"{state} {path} — {len(r.errors)} error(s), "
+            console.print(f"{state} {path}: {len(r.errors)} error(s), "
                           f"{len(r.warnings)} warning(s), {len(r.notices)} notice(s)")
             for e in r.errors:
                 click.echo(f"  ERROR   {e}")

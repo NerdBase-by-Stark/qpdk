@@ -157,13 +157,23 @@ class ValidationResult:
 
         return "\n".join(lines)
 
-    def print_rich(self, console, show_warnings: bool = True) -> None:
-        """Print formatted output using rich."""
+    def print_rich(self, console, show_warnings: bool = True,
+                   strict: bool = False) -> None:
+        """Print formatted output using rich.
+
+        With strict=True, warnings fail the run (exit 2), so a plugin with no
+        errors but at least one warning is shown as FAILED, not VALID.
+        """
         from rich.panel import Panel
         from rich.table import Table
 
         # Header
-        if self.valid:
+        if self.valid and strict and self.warnings:
+            console.print(Panel(f"[red]FAILED[/red] {self.plugin_path}: "
+                                f"{len(self.warnings)} warning(s) fail the run "
+                                "under --strict",
+                                title="Plugin Validation"))
+        elif self.valid:
             console.print(Panel(f"[green]VALID[/green] {self.plugin_path}",
                                 title="Plugin Validation"))
         else:

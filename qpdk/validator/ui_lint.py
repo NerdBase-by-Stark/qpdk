@@ -108,9 +108,9 @@ def lint_page(layout, graphics, page: int) -> list[dict[str, Any]]:
         # QPDK045 — vocabulary typo check (positioned entries with a Style key)
         if style is not None and str(style) not in UI_LINT_VOCABULARY:
             add("QPDK045", "info", name,
-                f"Style {str(style)!r} is not in the corpus-verified "
-                f"vocabulary — possible typo (the set is corpus-bounded, "
-                f"not authoritative)")
+                f"Style {str(style)!r} is not a known Q-SYS style name; "
+                f"possible typo (the list comes from shipped plugins and may "
+                f"be incomplete)")
         if w <= 0 or h <= 0:
             # QPDK041; degenerate rects excluded from the other geometry rules.
             add("QPDK041", "warning", name,
@@ -138,7 +138,7 @@ def lint_page(layout, graphics, page: int) -> list[dict[str, Any]]:
         if any(v != int(v) for v in (x, y, w, h)):
             add("QPDK044", "info", name,
                 f"non-integral Position/Size component "
-                f"({x:g},{y:g} {w:g}x{h:g}) — un-floored arithmetic?")
+                f"({x:g},{y:g} {w:g}x{h:g}); missing math.floor?")
 
     on_canvas = [(n, x, y, w, h) for (n, x, y, w, h) in controls
                  if not _is_parked(x, y, w, h)]
@@ -152,8 +152,7 @@ def lint_page(layout, graphics, page: int) -> list[dict[str, Any]]:
             oy = min(y1 + h1, y2 + h2) - max(y1, y2)
             if ox > 0 and oy > 0:
                 add("QPDK040", "warning", n1,
-                    f"overlaps control {n2!r} by {ox:g}x{oy:g}px "
-                    f"(zero overlaps in all 9 corpus plugins)")
+                    f"overlaps control {n2!r} by {ox:g}x{oy:g}px")
 
     # QPDK042 — X overflow past the background span (Header/GroupBox proxy)
     backgrounds = [(x, x + w) for (t, x, y, w, h) in graphic_rects
@@ -177,13 +176,13 @@ def lint_page(layout, graphics, page: int) -> list[dict[str, Any]]:
         # QPDK043 — origin-axis straddle (partially off-canvas)
         if x < 0 < x + w or y < 0 < y + h:
             add("QPDK043", "info", n,
-                f"rect ({x:g},{y:g} {w:g}x{h:g}) straddles an origin axis — "
-                f"sign/offset arithmetic bug?")
+                f"rect ({x:g},{y:g} {w:g}x{h:g}) is partly off the page "
+                f"(crosses x=0 or y=0); sign or offset arithmetic bug?")
         # QPDK046 — sliver control
         if min(w, h) < _MIN_DIMENSION_PX:
             add("QPDK046", "info", n,
-                f"dimension {min(w, h):g}px is below the smallest shipped "
-                f"on-canvas control ({_MIN_DIMENSION_PX}px)")
+                f"dimension {min(w, h):g}px is smaller than {_MIN_DIMENSION_PX}px, "
+                f"the smallest control seen in shipped plugins")
 
     return findings
 

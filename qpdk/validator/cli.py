@@ -22,15 +22,16 @@ console = Console()
 @click.option("--ruleset", "-r", "ruleset",
               type=click.Choice(["P0", "default", "full"], case_sensitive=False),
               default=None,
-              help="Rule set to apply: P0 (crash-preventing only), "
-                   "default (phase 1 and 2 rules), full (every rule, INFO "
-                   "listed). When omitted, every rule runs and INFO "
-                   "advisories are counted but not listed.")
+              help="Rule set to apply: P0 (crash-preventing rules only), "
+                   "default (crash-preventing and quality rules, INFO listed), "
+                   "full (every rule, INFO listed). When omitted, every rule "
+                   "runs and INFO advisories are counted but not listed.")
 @click.option("--quiet", "-q", is_flag=True, help="Only show errors")
 def main(plugin_paths: tuple[str, ...], output_format: str, strict: bool,
          qsys_version: str, ruleset: str | None, quiet: bool):
-    """Validate Q-SYS plugin files.
+    """Validate Q-SYS plugin files. Same checks as `qpdk validate`.
 
+    \b
     Examples:
         qpdk-validate plugin.qplug
         qpdk-validate *.qplug --format json
@@ -59,10 +60,10 @@ def main(plugin_paths: tuple[str, ...], output_format: str, strict: bool,
             # Will print all at end
             pass
         elif output_format == "tap":
-            # Machine formats bypass rich: FORCE_COLOR would inject ANSI (D7).
+            # Machine formats bypass rich: FORCE_COLOR would inject ANSI codes.
             click.echo(result.to_tap())
         else:
-            result.print_rich(console, show_warnings=not quiet)
+            result.print_rich(console, show_warnings=not quiet, strict=strict)
             console.print()
 
     if output_format == "json":

@@ -1404,7 +1404,7 @@ class QSYSRuntime:
         """
         if not self.design_time:
             raise RuntimeError(
-                "run_design_time requires QSYSRuntime(design_time=True) — a "
+                "run_design_time requires QSYSRuntime(design_time=True): a "
                 "runtime with Controls injected cannot reproduce the "
                 "design-time-nil crash class."
             )

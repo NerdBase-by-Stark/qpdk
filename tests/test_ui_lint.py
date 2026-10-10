@@ -134,7 +134,7 @@ end
     a = { Style = "Buton", Position = { 10, 10 }, Size = { 50, 20 } },
 """)
         f = [x for x in _lint(code) if x["code"] == "QPDK045"]
-        assert f and "corpus-verified vocabulary" in f[0]["message"]
+        assert f and "not a known Q-SYS style name" in f[0]["message"]
 
     def test_qpdk046_sliver(self):
         code = self._layout_plugin("""

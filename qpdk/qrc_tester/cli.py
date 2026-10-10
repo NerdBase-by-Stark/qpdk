@@ -11,8 +11,9 @@ console = Console()
 
 
 @click.command()
-@click.option("--port", "-p", default=1710, help="Port to listen on")
-@click.option("--host", "-h", "host", default="127.0.0.1", help="Host to bind to")
+@click.option("--port", "-p", default=1710, show_default=True, help="Port to listen on")
+@click.option("--host", "-h", "host", default="127.0.0.1", show_default=True,
+              help="Host to bind to")
 @click.option("--record", "-r", type=click.Path(), help="Record interactions to file")
 @click.option("--playback", type=click.Path(exists=True), help="Playback recorded responses")
 @click.option("--add-control", "-c", "controls", multiple=True,
@@ -28,24 +29,14 @@ def main(port: int, host: str, record: str | None, playback: str | None,
 
     Simulates a Q-SYS Core for integration testing.
 
+    \b
     Examples:
-        # Basic server
-        qpdk-qrc
-
-        # With controls
-        qpdk-qrc -c "Volume=0.5" -c "Mute=0"
-
-        # With component
-        qpdk-qrc --add-component "Mixer:gain.1,gain.2,mute"
-
-        # With authentication
-        qpdk-qrc -u "admin:password"
-
-        # Record interactions
-        qpdk-qrc --record session.json
-
-        # Playback recorded responses
-        qpdk-qrc --playback recorded.json
+      qpdk-qrc                                    # basic server
+      qpdk-qrc -c "Volume=0.5" -c "Mute=0"        # with controls
+      qpdk-qrc --add-component "Mixer:gain.1,gain.2,mute"
+      qpdk-qrc -u "admin:password"                # with a login
+      qpdk-qrc --record session.json              # record interactions
+      qpdk-qrc --playback recorded.json           # replay recorded responses
     """
     server = QRCMockServer(host=host, port=port)
 

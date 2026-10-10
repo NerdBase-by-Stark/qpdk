@@ -7,12 +7,14 @@ PluginInfo = {
     BuildVersion = "1.0.0.0",
     Id = "com.qpdk.examples.simple-button",
     Author = "QPDK",
+    Manufacturer = "QPDK",
     Description = "A simple button that toggles state",
     ShowDebug = true
 }
 
 function GetProperties()
     local props = {}
+    -- Starting value of the State LED when the plugin loads
     table.insert(props, {
         Name = "Initial State",
         Type = "boolean",
