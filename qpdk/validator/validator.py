@@ -1333,10 +1333,13 @@ class PluginValidator:
         plugin's ability to recover.
 
         Checks both same-line pcall and multi-line pcall(function() wrapper
-        within a small lookback window (3 lines).
+        within a small lookback window (3 lines). A test of ``<obj>.IsConnected``
+        earlier in the enclosing function also counts as a guard (Write raises
+        an error if the socket is not connected: TcpSocket.htm, Ssh.htm).
         """
         # Pattern: obj:Write( -- colon method call syntax
-        write_call_re = re.compile(r'\w+:Write\s*\(')
+        write_call_re = re.compile(r'(\w+):Write\s*\(')
+        func_ranges = None
         # Pattern: pcall(function() — anonymous-function wrapper on a nearby line
         pcall_func_re = re.compile(r'pcall\s*\(\s*function\s*\(')
 
@@ -1362,6 +1365,17 @@ class PluginValidator:
                         found_pcall_wrapper = True
                         break
                 if not found_pcall_wrapper:
+                    if func_ranges is None:
+                        func_ranges = self._find_function_ranges(lines)
+                    obj = write_call_re.search(code_part).group(1)
+                    conn_re = re.compile(rf'\b{re.escape(obj)}\s*\.\s*IsConnected\b')
+                    idx = line_num - 1
+                    enclosing = [(a, b) for a, b in func_ranges if a <= idx <= b]
+                    if enclosing:
+                        fstart = max(a for a, _ in enclosing)
+                        if any(conn_re.search(lines[i].split("--")[0])
+                               for i in range(fstart, idx + 1)):
+                            continue
                     result.add_warning(
                         self.SSH_WRITE_PCALL,
                         "Unprotected :Write() call. SSH/TCP write failures without pcall "

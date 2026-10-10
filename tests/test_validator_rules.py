@@ -1156,6 +1156,35 @@ end
 # QPDK031: Single-shot timer missing :Stop()
 # ---------------------------------------------------------------------------
 
+    def test_isconnected_guard_in_enclosing_function_ok(self, v):
+        """B6: an IsConnected early return in the same function guards the Write."""
+        code = _plugin("IsConn Guard", """\
+if Controls then
+  sock = TcpSocket.New()
+  function Send(data)
+    if not sock.IsConnected then
+      return nil
+    end
+    local payload = data .. "\\n"
+    sock:Write(payload)
+  end
+end
+""", "isconn-guard")
+        result = v.validate_string(code)
+        assert not any(i.code == "QPDK029" for i in result.issues)
+
+    def test_isconnected_of_other_object_does_not_guard(self, v):
+        code = _plugin("IsConn Other", """\
+if Controls then
+  function Send(data)
+    if not other.IsConnected then return end
+    sock:Write(data)
+  end
+end
+""", "isconn-other")
+        result = v.validate_string(code)
+        assert any(i.code == "QPDK029" for i in result.issues)
+
 class TestQPDK031TimerMissingStop:
     """A Timer repeats until stopped; a never-stopped timer is surfaced as INFO."""
 
