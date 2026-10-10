@@ -129,12 +129,7 @@ echo "  Verified: both files show $NEW_VERSION"
 if $DO_COMMIT; then
     cd "$PROJECT_ROOT"
     git add "$PYPROJECT" "$INIT_PY"
-    git commit -m "$(cat <<EOF
-chore: bump version to $NEW_VERSION
-
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
-EOF
-)"
+    git commit -m "chore: bump version to $NEW_VERSION"
     echo "  Committed: version bump to $NEW_VERSION"
 fi
 

@@ -393,3 +393,38 @@ class TestShippedExamples:
         res = runner.invoke(qpdk_main, ["validate", str(_EXAMPLES / "bad" / name), "--strict"])
         assert res.exit_code in (1, 2)
         assert "QPDK" in res.output
+
+
+# ---------------------------------------------------------------------------
+# scripts/bump-version.sh
+# ---------------------------------------------------------------------------
+
+import os  # noqa: E402
+import shutil  # noqa: E402
+import subprocess  # noqa: E402
+
+
+@pytest.mark.skipif(shutil.which("git") is None or shutil.which("bash") is None,
+                    reason="needs git and bash")
+def test_bump_version_commit_has_plain_message(tmp_path):
+    root = Path(__file__).parent.parent
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "qpdk").mkdir()
+    shutil.copy(root / "scripts" / "bump-version.sh", tmp_path / "scripts")
+    (tmp_path / "pyproject.toml").write_text('[project]\nversion = "1.2.3"\n')
+    (tmp_path / "qpdk" / "__init__.py").write_text('__version__ = "1.2.3"\n')
+    env = {"PATH": os.environ["PATH"], "HOME": str(tmp_path),
+           "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com",
+           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com"}
+    git = ["git", "-C", str(tmp_path)]
+    subprocess.run([*git, "init", "-q"], check=True, env=env)
+    subprocess.run([*git, "add", "."], check=True, env=env)
+    subprocess.run([*git, "commit", "-q", "-m", "init"], check=True, env=env)
+    res = subprocess.run(["bash", str(tmp_path / "scripts" / "bump-version.sh"),
+                          "patch", "--commit"], capture_output=True, text=True, env=env)
+    if res.returncode != 0 and "grep" in res.stderr:
+        pytest.skip("grep -P not available")
+    assert res.returncode == 0, res.stderr
+    msg = subprocess.run([*git, "log", "-1", "--format=%B"], capture_output=True,
+                         text=True, check=True, env=env).stdout.strip()
+    assert msg == "chore: bump version to 1.2.4"
