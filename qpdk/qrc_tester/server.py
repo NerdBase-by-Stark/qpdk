@@ -280,10 +280,10 @@ class QRCMockServer:
         password = params.get("Password", "")
 
         # Check credentials
-        if username in self.state.valid_users:
-            if self.state.valid_users[username] == password:
-                self.state.authenticated[client_id] = username
-                return QRCResponse.success(request.id, True)
+        if (username in self.state.valid_users
+                and self.state.valid_users[username] == password):
+            self.state.authenticated[client_id] = username
+            return QRCResponse.success(request.id, True)
 
         return QRCResponse.make_error(
             request.id,
@@ -474,7 +474,7 @@ class QRCMockServer:
         """Handle Component.GetComponents command."""
         components = [
             {"Name": name, "Type": "MockComponent"}
-            for name in self.state.components.keys()
+            for name in self.state.components
         ]
         return QRCResponse.success(request.id, components)
 
@@ -730,9 +730,10 @@ class QRCMockServer:
                                     request: QRCRequest) -> QRCResponse:
         """Handle Snapshot.Load command."""
         params = request.params or {}
-        name = params.get("Name", "")
-        bank = params.get("Bank", "")
-        ramp = params.get("Ramp", 0.0)
+        # Read but unused: the mock only acknowledges the load.
+        _name = params.get("Name", "")
+        _bank = params.get("Bank", "")
+        _ramp = params.get("Ramp", 0.0)
 
         # Mock implementation - just acknowledge
         return QRCResponse.success(request.id, True)

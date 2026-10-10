@@ -9,6 +9,7 @@ Comprehensive validation for Q-SYS .qplug files including:
 - P2 quality and safety rules (QPDK022-035)
 """
 
+import contextlib
 import re
 import subprocess
 from pathlib import Path
@@ -569,10 +570,8 @@ class PluginValidator:
                 elif value == "false":
                     value = False
                 elif field_match.group(4):  # was a number
-                    try:
+                    with contextlib.suppress(ValueError):
                         value = float(value) if "." in value else int(value)
-                    except ValueError:
-                        pass
                 plugin_info[key] = value
 
         result.plugin_info = plugin_info
@@ -638,13 +637,12 @@ class PluginValidator:
         # evaluator warns when PluginInfo.Manufacturer is absent; it identifies
         # the vendor in Q-SYS Library / Asset Manager. The vendor corpus shows
         # 0/19 real plugins set it, so this is INFO, not WARNING.
-        if self._is_rule_active("QPDK047"):
-            if "Manufacturer" not in plugin_info:
-                result.add_info(
-                    self.PLUGININFO_MANUFACTURER,
-                    "PluginInfo.Manufacturer not set — recommended for Q-SYS Library / "
-                    "Asset Manager vendor identification (managed-submission convention)"
-                )
+        if self._is_rule_active("QPDK047") and "Manufacturer" not in plugin_info:
+            result.add_info(
+                self.PLUGININFO_MANUFACTURER,
+                "PluginInfo.Manufacturer not set — recommended for Q-SYS Library / "
+                "Asset Manager vendor identification (managed-submission convention)"
+            )
 
     def _validate_duplicate_plugin_id(self, content: str, result: ValidationResult) -> None:
         """Check for duplicate plugin IDs across validations on the same validator instance.
@@ -1152,18 +1150,18 @@ class PluginValidator:
             code_part = line.split("--")[0]
             if self._is_suppressed(line, self.TONUMBER_NIL_GUARD):
                 continue
-            if unsafe_nested_re.search(code_part):
-                # Check the full line does not also have an "or" fallback
-                if not safe_fallback_re.search(code_part):
-                    # Exclude string.char(tonumber(x, 16)) hex-escape idiom
-                    if string_char_hex_re.search(code_part):
-                        continue
-                    result.add_warning(
-                        self.TONUMBER_NIL_GUARD,
-                        "tonumber() result used without nil guard. "
-                        "tonumber() returns nil on invalid input — use 'tonumber(x) or 0' fallback.",
-                        line=line_num
-                    )
+            # Check the full line does not also have an "or" fallback
+            if (unsafe_nested_re.search(code_part)
+                    and not safe_fallback_re.search(code_part)):
+                # Exclude string.char(tonumber(x, 16)) hex-escape idiom
+                if string_char_hex_re.search(code_part):
+                    continue
+                result.add_warning(
+                    self.TONUMBER_NIL_GUARD,
+                    "tonumber() result used without nil guard. "
+                    "tonumber() returns nil on invalid input — use 'tonumber(x) or 0' fallback.",
+                    line=line_num
+                )
 
     def _validate_status_value_range(self, content: str, result: ValidationResult) -> None:
         """Detect status control .Value assignments outside the valid 0-5 range.
@@ -1299,9 +1297,9 @@ class PluginValidator:
         if plugin_info_body is None:
             return
 
-        info_fields = set(
+        info_fields = {
             m.group(1) for m in re.finditer(r'(\w+)\s*=', plugin_info_body)
-        )
+        }
 
         # Extract property names from GetProperties
         props_match = re.search(
@@ -1703,15 +1701,15 @@ class PluginValidator:
                 if func_name in self._FRAMEWORK_API_FUNCTIONS
                 else self._DEFAULT_THRESHOLD
             )
-            if line_count > threshold:
-                if not self._is_suppressed(lines[start], self.MONOLITHIC_FUNCTION):
-                    result.add_info(
-                        self.MONOLITHIC_FUNCTION,
-                        f"Function '{func_name}' is {line_count} lines long "
-                        f"(threshold: {threshold}). Consider refactoring into "
-                        f"smaller functions.",
-                        line=start + 1,
-                    )
+            if (line_count > threshold
+                    and not self._is_suppressed(lines[start], self.MONOLITHIC_FUNCTION)):
+                result.add_info(
+                    self.MONOLITHIC_FUNCTION,
+                    f"Function '{func_name}' is {line_count} lines long "
+                    f"(threshold: {threshold}). Consider refactoring into "
+                    f"smaller functions.",
+                    line=start + 1,
+                )
 
     def _validate_dual_write_indicator(self, content: str, result: ValidationResult) -> None:
         """Detect Indicator/Text controls missing either .Value or .String write.
@@ -2223,10 +2221,10 @@ class PluginValidator:
                 line_idx = line_num - 1
                 enclosing = None
                 for fstart, fend in func_ranges:
-                    if fstart <= line_idx <= fend:
-                        # Pick the tightest (innermost) enclosing function
-                        if enclosing is None or fstart > enclosing[0]:
-                            enclosing = (fstart, fend)
+                    # Pick the tightest (innermost) enclosing function
+                    if fstart <= line_idx <= fend and (
+                            enclosing is None or fstart > enclosing[0]):
+                        enclosing = (fstart, fend)
 
                 if enclosing is not None and enclosing in guarded_ranges:
                     continue
@@ -2610,9 +2608,12 @@ class PluginValidator:
             missing = [k for k in ("key", "iv", "data") if k not in obj]
             if missing:
                 result.add_error(self.QPLUGX_STRUCTURE, f"'{prefix}' missing {missing}")
-            if "key" in obj:  _b64len(f"{prefix}.key", obj["key"], expect=256)   # RSA-2048 wrapped AES key
-            if "iv" in obj:   _b64len(f"{prefix}.iv", obj["iv"], expect=16)      # AES IV
-            if "data" in obj: _b64len(f"{prefix}.data", obj["data"], block=16)   # AES-CBC ciphertext
+            if "key" in obj:  # RSA-2048 wrapped AES key
+                _b64len(f"{prefix}.key", obj["key"], expect=256)
+            if "iv" in obj:  # AES IV
+                _b64len(f"{prefix}.iv", obj["iv"], expect=16)
+            if "data" in obj:  # AES-CBC ciphertext
+                _b64len(f"{prefix}.data", obj["data"], block=16)
 
         if doc.get("version") == 2 or path.suffix == ".qplugx2" or "designtime" in doc:
             # v2 format

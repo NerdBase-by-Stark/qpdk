@@ -161,7 +161,7 @@ def lint_page(layout, graphics, page: int) -> list[dict[str, Any]]:
     if backgrounds:
         bg_min = min(b[0] for b in backgrounds)
         bg_max = max(b[1] for b in backgrounds)
-        for n, x, y, w, h in on_canvas:
+        for n, x, _y, w, _h in on_canvas:
             if x + w > bg_max + _EDGE_TOLERANCE_PX:
                 add("QPDK042", "warning", n,
                     f"right edge {x + w:g} exceeds the background span "

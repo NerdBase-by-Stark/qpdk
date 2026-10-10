@@ -6,6 +6,9 @@ entry point. Assertions are on exit_code and parsed JSON keys, never rich text.
 """
 
 import json
+import os
+import subprocess
+import sys
 
 import pytest
 from click.testing import CliRunner
@@ -145,10 +148,6 @@ class TestDesignCheckCommand:
 # ---------------------------------------------------------------------------
 # Machine formats must be ANSI-free even under FORCE_COLOR
 # ---------------------------------------------------------------------------
-
-import os
-import subprocess
-import sys
 
 
 def _run_cli_forced_color(entry_module, argv, tmp_path):

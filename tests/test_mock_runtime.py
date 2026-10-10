@@ -94,8 +94,8 @@ class TestMockControls:
         """Add controls via helper methods."""
         controls = MockControls()
 
-        btn = controls.add_input("Button", value=1.0)
-        led = controls.add_output("LED", string="ON")
+        controls.add_input("Button", value=1.0)
+        controls.add_output("LED", string="ON")
 
         assert controls.Inputs["Button"].value == 1.0
         assert controls.Outputs["LED"].string == "ON"

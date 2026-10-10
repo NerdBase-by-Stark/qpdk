@@ -834,7 +834,7 @@ if Controls then
   local s = string.format("%d", tonumber(Controls.val.String))
 end
 """, "tn-format")
-        result = v.validate_string(code)
+        v.validate_string(code)
         # Heuristic limitation: tonumber as second arg to function is not caught.
         # This documents a known gap — full detection requires AST analysis.
         assert True  # no crash, no false positive

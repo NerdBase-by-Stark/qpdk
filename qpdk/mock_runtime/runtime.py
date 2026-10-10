@@ -878,7 +878,7 @@ class QSYSRuntime:
         wrapped = self._lua.table()
 
         def index(t, key):
-            if key == "IsConnected":
+            if key == "IsConnected":  # noqa: SIM116 - branches read live attributes lazily; a dict would snapshot them
                 return tcp_obj.IsConnected
             elif key == "BufferLength":
                 return tcp_obj.BufferLength

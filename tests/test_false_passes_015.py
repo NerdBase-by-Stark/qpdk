@@ -107,7 +107,7 @@ class TestTimerSurface:
 
     def test_mock_timer_create_does_not_exist(self, tmp_path):
         h = PluginHarness(_write(tmp_path, "t = Timer.Create()"))
-        with pytest.raises(Exception):
+        with pytest.raises(RuntimeError):
             h.make_runtime()
 
     def test_mock_timer_now_exists(self, tmp_path):

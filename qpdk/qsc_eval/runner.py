@@ -65,7 +65,7 @@ def run_qsc_eval(
 
     L = lua53.LuaRuntime()
     L.execute(
-        'package.path = "{0}/?.lua;" .. package.path'.format(
+        'package.path = "{}/?.lua;" .. package.path'.format(
             str(VENDOR_DIR).replace("\\", "/")
         )
     )
