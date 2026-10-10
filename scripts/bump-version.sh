@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bump-version.sh — Bump QPDK version across all source files
+# bump-version.sh: bump QPDK version across all source files
 #
 # Usage:
 #   ./scripts/bump-version.sh <new_version>
@@ -86,7 +86,7 @@ esac
 validate_semver "$NEW_VERSION"
 
 if [ "$NEW_VERSION" = "$CURRENT_VERSION" ]; then
-    echo "Version is already $CURRENT_VERSION — nothing to do."
+    echo "Version is already $CURRENT_VERSION; nothing to do."
     exit 0
 fi
 
@@ -135,7 +135,7 @@ fi
 
 if $DO_TAG; then
     if ! $DO_COMMIT; then
-        echo "  WARNING: --tag without --commit — tagging current HEAD (uncommitted changes not included)"
+        echo "  WARNING: --tag without --commit tags the current HEAD (uncommitted changes are not included)"
     fi
     cd "$PROJECT_ROOT"
     git tag -a "v$NEW_VERSION" -m "Release v$NEW_VERSION"

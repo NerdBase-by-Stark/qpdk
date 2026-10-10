@@ -19,6 +19,11 @@ behaviour that tests may rely on; they are marked **Changed**.
   still run every rule but list only errors and warnings, with a one-line
   count of the INFO advisories not listed. `--ruleset full` lists them, as
   the old default did. `--quiet` now hides INFO rows too.
+- **Changed:** under `--strict`, a plugin with warnings but no errors shows
+  a red FAILED banner instead of a green VALID one, matching its exit code 2.
+- `qpdk rules` explains the Phase column and no longer drops text such as
+  `[i]` from descriptions. Several rule descriptions and finding messages
+  are reworded to drop internal jargon.
 - luacheck `W113` (reading an undefined global) is now INFO when the plugin
   assigns that name somewhere, and stays a WARNING otherwise.
 - QPDK024 (reserved name shadowing) matches names by exact case.
@@ -63,14 +68,20 @@ behaviour that tests may rely on; they are marked **Changed**.
 
 ### Packaging, docs and examples
 
+- pytest is now installed with QPDK, so `qpdk test` and the test harness
+  work straight after install.
 - The good example (`examples/good/simple-button.qplug`) now passes
-  `validate`, `design-check` and `qsc-eval`, and runs in the mock runtime.
-  CI runs `qsc-eval` on it.
+  `validate`, `design-check` and `qsc-eval`, including with `--strict` and
+  `--ruleset full`, and runs in the mock runtime. CI runs `qsc-eval` on it.
 - README: install note (QPDK is not on PyPI), a "Writing a test suite"
   section, a working mock runtime example that fires EventHandlers, and a
   note that `qsc-eval` is stricter than Designer.
-- `docs/rules.md` replaces the old migration plan: rulesets, luacheck
-  severity mapping and the `-- qpdk:ignore` suppression syntax.
+- New `docs/rules.md`: rulesets, luacheck severity mapping and the
+  `-- qpdk:ignore` suppression syntax.
+- README: an exit code table for every command, a note that the Action
+  fails on errors only, and the standalone `qpdk-validate` and `qpdk-qrc`
+  commands. `qpdk-validate` and `qpdk-qrc` help keeps example line breaks,
+  and `qrc` help shows the default host and port.
 - `validate`, `design-check` and `qsc-eval` give a usage error for a
   directory argument instead of a traceback.
 - Packaging: SPDX licence metadata, the unused `qrc` extra removed, the sdist

@@ -16,17 +16,27 @@ Each finding is an `ERROR`, a `WARNING` or an `INFO`.
 | `1` | At least one error |
 | `2` | Warnings found under `--strict`, or a usage error such as a bad argument |
 
+`--format json` and `--format tap` give machine-readable output.
+`--qsys-version 7` makes QPDK009 flag APIs added in Q-SYS 9 or later
+(the default is 9).
+
 ## Rulesets
 
-`--ruleset` picks which rules run. Without it, every rule runs and the
-output lists errors and warnings, with a count of the INFO advisories it
-did not list. `--ruleset full` lists those advisories too.
+`--ruleset` picks which rules run and what is listed. Every rule has a
+phase, shown by `qpdk rules`: 1 = crash-preventing, 2 = quality,
+3 = advisory.
 
-| Ruleset | What runs | Typical use |
-|---------|-----------|-------------|
-| `P0` | Crash-preventing rules only | A minimal CI gate |
-| `default` | Phase 1 and 2 rules (`qpdk rules` shows each rule's rulesets) | A stable CI gate |
-| `full` | Everything, including INFO advisories | Development |
+| Flag | Rules that run | Listed | Typical use |
+|------|----------------|--------|-------------|
+| (none) | every rule | errors and warnings, plus a count of INFO notes not shown | CI gate, day to day |
+| `--ruleset P0` | phase 1 only | everything those rules find, INFO included | a minimal gate |
+| `--ruleset default` | phases 1 and 2 | everything those rules find, INFO included | a gate without the advisory rules |
+| `--ruleset full` | every rule | everything, INFO included | development |
+
+`--ruleset default` is not the same as leaving the flag off: it skips the
+phase 3 rules (including some warnings, such as QPDK029) and it lists INFO
+rows. luacheck findings appear under every ruleset. `qpdk rules` shows which
+rulesets each rule belongs to.
 
 ```bash
 qpdk validate --ruleset P0 --strict MyPlugin.qplug
@@ -35,7 +45,9 @@ qpdk validate --ruleset full MyPlugin.qplug
 ```
 
 The layout geometry rules QPDK040 to QPDK046 need the evaluated layout, so
-`qpdk design-check` reports them, not `qpdk validate`.
+`qpdk design-check` reports them, not `qpdk validate`. They are advisory:
+`design-check` prints them, but its exit code only reflects design-time
+crashes.
 
 ## luacheck findings
 

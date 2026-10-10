@@ -25,13 +25,14 @@ finish line: test on real hardware before you ship.
 
 - **Validator** (`qpdk validate`): rules covering Lua syntax, plugin
   structure, control and layout coupling, design-time crash patterns, timer and
-  socket lifecycle, logging API use, layout geometry and more. Optional
+  socket lifecycle, logging API use and more. Optional
   luacheck integration with a Q-SYS globals list. `qpdk rules` lists every
   rule with its severity and rulesets; see [docs/rules.md](docs/rules.md) for
   rulesets, luacheck codes and how to silence a finding.
 - **Designer drag-in check** (`qpdk design-check`): runs the plugin's
   definition functions the way Designer does at drag-in, where `Controls` does
-  not exist yet, and reports anything that would crash.
+  not exist yet, and reports anything that would crash, plus layout geometry
+  findings (overlaps, zero sizes, off-page controls).
 - **QSC's official evaluator** (`qpdk qsc-eval`): runs QSC's own
   Plugin-Evaluation-Script as an extra check. See below.
 - **Mock runtime** (`qpdk.mock_runtime`): a Lua 5.3 sandbox with Q-SYS APIs
@@ -42,6 +43,9 @@ finish line: test on real hardware before you ship.
   change.
 - **QRC mock server** (`qpdk qrc`): a stand-in Core that speaks QRC, for
   testing external control clients.
+- **Standalone commands**: `qpdk-validate` and `qpdk-qrc` are installed too.
+  They do the same as `qpdk validate` and `qpdk qrc`; `qpdk-qrc` also takes
+  `--add-control`, `--add-component` and `--user`.
 - **GitHub Action**: gate every push to a plugin repo.
 
 ## Install
@@ -54,6 +58,8 @@ install from git (or use the GitHub Action below):
 ```bash
 pip install "git+https://github.com/NerdBase-by-Stark/qpdk.git"
 ```
+
+This also installs pytest, which `qpdk test` and the test harness use.
 
 For the `LUACHECK-*` rules, install [luacheck](https://github.com/lunarmodules/luacheck)
 (`luarocks install luacheck`). Validation still runs without it, but is weaker.
@@ -76,6 +82,22 @@ qpdk --help
 
 `qpdk test` fails when no test directory is found: a plugin with no tests is
 not a passing plugin.
+
+Leaving `--ruleset` off runs every rule. `--ruleset default` is not the same
+thing: it runs fewer rules and lists INFO rows. See
+[docs/rules.md](docs/rules.md#rulesets).
+
+## Exit codes
+
+| Command | 0 | 1 | 2 |
+|---|---|---|---|
+| `validate` | no errors (and no warnings under `--strict`) | at least one error | warnings under `--strict`, or a usage error |
+| `design-check` | no design-time crash | a plugin would crash Designer | usage error |
+| `qsc-eval` | no QSC errors (and no warnings under `--strict`) | QSC errors, or warnings under `--strict` | the plugin crashed at design time, or a usage error |
+| `test` | pytest passed | pytest's own code (1 = test failures) | no test directory, or a usage error |
+
+Layout findings from `design-check` (QPDK040 to QPDK046) are printed but do
+not change its exit code.
 
 ## Writing a test suite
 
@@ -101,7 +123,10 @@ def qsys_harness():
 
 `PluginHarness` builds the control set (including arrays) from the plugin's
 own `GetControls`, so tests don't rot when controls change, and the plugin's
-lookup of a control it never declared returns nil.
+lookup of a control it never declared returns nil. That applies to the
+plugin's Lua. Indexing `rt.controls[...]` from Python still creates the
+control on demand, so a typo in a test does not fail by itself; assert on a
+value the plugin wrote.
 `property_defaults` sets the property values every test starts from; any
 property you don't list is missing in the mock, so list the ones your
 runtime code reads.
@@ -160,8 +185,11 @@ name on demand; `PluginHarness` above is stricter and is the better default.
 To reproduce Designer's drag-in in a test:
 
 ```python
-from qpdk.mock_runtime.runtime import QSYSRuntime
+from pathlib import Path
 
+from qpdk.mock_runtime import QSYSRuntime
+
+plugin_source = Path("MyPlugin.qplug").read_text(encoding="utf-8")
 runtime = QSYSRuntime(design_time=True)   # Controls stays nil, as in Designer
 report = runtime.run_design_time(plugin_source)
 assert report.errors == []
@@ -184,7 +212,11 @@ jobs:
 ```
 
 The action runs `validate`, `design-check` and, if you give a `test-dir`, the
-pytest harness.
+pytest harness. It fails the build on errors only. Add your own step with
+`qpdk validate --strict MyPlugin.qplug` if warnings should fail it too.
+
+It installs luacheck with apt (which needs sudo on the runner) unless you set
+`install-luacheck: 'false'`.
 
 ## QSC's evaluator
 
@@ -209,21 +241,21 @@ qpdk qsc-eval MyPlugin.qplug -p "Inputs=16"  # a specific configuration
 ```
 
 Exit codes: `0` clean, `1` QSC errors (or warnings with `--strict`), `2` the
-plugin crashed at design time.
+plugin crashed at design time or a usage error.
 
 ## QRC mock server
 
 ```bash
-qpdk qrc                                  # default port 1710
+qpdk qrc                                  # listens on 127.0.0.1:1710
 qpdk qrc --port 1711                      # another port
 qpdk qrc --record session.json            # record responses to a file
 qpdk qrc --playback session.json          # replay recorded responses
 ```
 
 Supports Logon, NoOp, StatusGet/EngineStatus, Control.Get/Set,
-Component.Get/Set, ChangeGroup.*, Snapshot.Load and Snapshot.Save. It is a simple stand-in,
-not a full Core: a client that works against it can still fail against real
-hardware.
+Component.Get/Set/GetComponents/GetControls, ChangeGroup.*, Snapshot.Load and
+Snapshot.Save. It is a simple stand-in, not a full Core: a client that works
+against it can still fail against real hardware.
 
 ## Limitations
 
@@ -250,10 +282,13 @@ hardware.
 
 ## Development
 
+Use a fresh virtual environment. Do not reuse one that has QPDK installed from
+git: leftover files from that install can hide the editable copy.
+
 ```bash
 pip install -e ".[dev]"
 pytest
-ruff check qpdk/
+ruff check qpdk tests
 ```
 
 Changes are listed in [CHANGELOG.md](CHANGELOG.md).
