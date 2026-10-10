@@ -1,11 +1,11 @@
 name: CI
 
-# Skip the coding pipeline for doc-only changes — editing markdown, the
-# research notes, or docs should not trigger ruff/mypy/pytest. A commit that
+# Skip the coding pipeline for doc-only changes: editing markdown or docs
+# should not trigger ruff/mypy/pytest. A commit that
 # touches any non-doc file still runs the full pipeline.
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
@@ -21,8 +21,7 @@ on:
 
 jobs:
   # Authoritative gate: tests MUST pass. Runs independently of lint/type checks
-  # so a lint failure can never again mask the test result (it did for months —
-  # see internal notes).
+  # so a lint failure can never mask the test result.
   test:
     runs-on: ubuntu-latest
     strategy:
@@ -121,16 +120,25 @@ jobs:
           fi
           qpdk design-check "${plugins[@]}"
 
-      # These fixtures are INTENTIONALLY invalid — the gate asserts the
+      # QSC's official evaluator: good examples must pass it too, so the
+      # showcase plugin never drifts from the official SDK vocabulary.
+      - name: QSC evaluator on good plugins
+        run: |
+          shopt -s nullglob
+          plugins=(examples/good/*.qplug)
+          if [ "${#plugins[@]}" -eq 0 ]; then
+            echo "ERROR: no good examples matched - gate asserted nothing"
+            exit 1
+          fi
+          qpdk qsc-eval "${plugins[@]}"
+
+      # These fixtures are INTENTIONALLY invalid: the gate asserts the
       # validator still catches them. A bad example that validates clean is a
       # validator regression and must fail CI. --strict is required because
       # local-timer.qplug only carries WARNING-level issues (exit 2 under
-      # --strict, exit 0 without). Previously this step was
-      # `qpdk validate "$plugin" || true`, which asserted nothing (false
-      # green — see pipeline/PIPELINE-SPEC-v1.md §6 item 2).
+      # --strict, exit 0 without).
       - name: Validate bad plugins (must be caught)
         run: |
-          # Hardened per audit (an internal review, F-01/D1/D2):
           # (a) zero matched examples = gate asserted nothing -> fail;
           # (b) non-zero exit alone is not proof of rejection (usage errors also
           #     exit 2) -> output must contain QPDK rule findings.
