@@ -29,6 +29,7 @@ dependencies = [
     "click>=8.0.0",
     "lupa>=2.0",  # Lua integration for Python
     "rich>=13.0.0",  # Pretty console output
+    "pytest>=7.0",  # qpdk test and the qpdk.testing pytest plugin
 ]
 
 [project.optional-dependencies]
