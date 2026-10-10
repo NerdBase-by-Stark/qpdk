@@ -5,6 +5,7 @@ Provides unified access to all QPDK tools.
 """
 
 import json
+from typing import Any
 
 import click
 from rich.console import Console
@@ -140,7 +141,7 @@ def design_check(plugin_paths: tuple[str, ...], output_format: str):
     from .mock_runtime.runtime import QSYSRuntime
     from .validator.ui_lint import lint_report
 
-    results = []
+    results: list[dict[str, Any]] = []
     for path in plugin_paths:
         raw = _Path(path).read_bytes()
         try:
@@ -267,6 +268,7 @@ def test(plugin_path: str, test_dir: str | None, coverage: bool):
     import sys
     from pathlib import Path
 
+    resolved_dir: str | None
     if test_dir:
         if not Path(test_dir).is_dir():
             console.print(f"[red]Error: --test-dir not found: {test_dir}[/red]")

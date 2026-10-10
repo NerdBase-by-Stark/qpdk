@@ -143,7 +143,7 @@ class ReplayDevice:
                         index: int = 0) -> str:
         """Replay the index-th feedback window of a recording into the socket."""
         fbs = [e for e in recording.exchanges if e["type"] == "feedback"]
-        rx = fbs[index]["rx"]
+        rx: str = fbs[index]["rx"]
         if rx:
             sock.simulate_data(rx if rx.endswith("\n") else rx + self.eol)
         return rx

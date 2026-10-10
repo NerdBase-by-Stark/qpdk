@@ -70,7 +70,7 @@ class QRCRequest:
         )
 
     def to_dict(self) -> dict[str, Any]:
-        result = {
+        result: dict[str, Any] = {
             "jsonrpc": self.jsonrpc,
             "method": self.method,
         }
@@ -89,7 +89,7 @@ class QRCError:
     data: Any = None
 
     def to_dict(self) -> dict[str, Any]:
-        result = {
+        result: dict[str, Any] = {
             "code": self.code,
             "message": self.message,
         }
@@ -108,7 +108,7 @@ class QRCResponse:
 
     def to_json(self) -> str:
         """Serialize to JSON string with null terminator."""
-        result = {
+        result: dict[str, Any] = {
             "jsonrpc": self.jsonrpc,
             "id": self.id,
         }
@@ -120,7 +120,7 @@ class QRCResponse:
         return json.dumps(result) + "\x00"
 
     def to_dict(self) -> dict[str, Any]:
-        result = {
+        result: dict[str, Any] = {
             "jsonrpc": self.jsonrpc,
             "id": self.id,
         }

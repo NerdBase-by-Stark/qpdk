@@ -51,12 +51,12 @@ def _rect(entry) -> tuple[float, float, float, float] | None:
         w, h = _num(size[1]), _num(size[2])
     except Exception:
         return None
-    if None in (x, y, w, h):
+    if x is None or y is None or w is None or h is None:
         return None
     return (x, y, w, h)
 
 
-def _is_parked(x, y, w, h) -> bool:
+def _is_parked(x: float, y: float, w: float, h: float) -> bool:
     """Fully off-canvas 'parking' idiom: exempt from 040/042/043/046."""
     return x + w <= 0 or y + h <= 0
 

@@ -49,7 +49,8 @@ def _load_exceptions(exceptions_path: str | None) -> dict:
     if not exceptions_path:
         return {}
     with open(exceptions_path, encoding="utf-8") as fh:
-        return json.load(fh).get("Exceptions", {})
+        exceptions: dict = json.load(fh).get("Exceptions", {})
+    return exceptions
 
 
 def run_qsc_eval(

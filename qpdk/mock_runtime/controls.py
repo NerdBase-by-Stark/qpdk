@@ -265,7 +265,7 @@ class MockControl:
     def _trigger_events(self) -> None:
         """Call all registered event handlers."""
         for handler in self._event_handlers:
-            if handler:
+            if handler:  # type: ignore[truthy-function]  # defensive; setter already drops None
                 try:
                     handler(handler_arg(handler, self))
                 except Exception as e:

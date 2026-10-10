@@ -329,6 +329,7 @@ class QRCMockServer:
         """Handle Control.Get command."""
         params = request.params or []
 
+        names: list[Any]
         if isinstance(params, dict):
             names = [params.get("Name")]
         elif isinstance(params, list):
@@ -763,6 +764,7 @@ class QRCMockServer:
     async def start(self, record_to: str | None = None) -> None:
         """Start the server (async, blocks until stopped)."""
         await self.start_listening(record_to)
+        assert self._server is not None  # set by start_listening
 
         async with self._server:
             await self._server.serve_forever()

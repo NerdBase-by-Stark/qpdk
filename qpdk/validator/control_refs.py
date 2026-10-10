@@ -191,11 +191,12 @@ def guarded(refs: list[ControlRef], raw: str, code_view: str) -> set[int]:
         if negated:
             continue
         kw = re.search(r"\b(if|elseif|while)\s*$", before)
-        if kw and follow.group(1) in ("then", "and", "do"):
+        # follow is set here: negated was False, so the guard above needed follow
+        if kw and follow is not None and follow.group(1) in ("then", "and", "do"):
             kw_pos = r.start - (len(before) - kw.start())
             depth = 1 if kw.group(1) == "elseif" else 0
             spans.append((r.name, r.end, _block_end(code_view, kw_pos if depth == 0 else r.end, depth)))
-        elif follow.group(1) == "and":
+        elif follow is not None and follow.group(1) == "and":
             eol = raw.find("\n", r.end)
             spans.append((r.name, r.end, len(raw) if eol < 0 else eol))
     for r in refs:

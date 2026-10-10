@@ -343,7 +343,7 @@ class PluginValidator:
         # string values (the _needs_raw_strings opt-out below) and for QPDK021's
         # require()-argument detection.
         self._raw_content = content
-        self._control_ctx = None  # QPDK049/050 design-time evaluation, per run
+        self._control_ctx: tuple[Any, list, set[int]] | None = None  # QPDK049/050 design-time evaluation, per run
 
         # "Code-only" view: line comments, block comments AND string-literal
         # interiors blanked (length/lines preserved). This is now the DEFAULT
@@ -1349,7 +1349,8 @@ class PluginValidator:
             code_part = line.split("--")[0]
             if self._is_suppressed(line, self.SSH_WRITE_PCALL):
                 continue
-            if write_call_re.search(code_part):
+            write_m = write_call_re.search(code_part)
+            if write_m:
                 # Check if the same line contains pcall wrapping
                 if 'pcall' in code_part:
                     continue
@@ -1365,7 +1366,7 @@ class PluginValidator:
                 if not found_pcall_wrapper:
                     if func_ranges is None:
                         func_ranges = self._find_function_ranges(lines)
-                    obj = write_call_re.search(code_part).group(1)
+                    obj = write_m.group(1)
                     conn_re = re.compile(rf'\b{re.escape(obj)}\s*\.\s*IsConnected\b')
                     idx = line_num - 1
                     enclosing = [(a, b) for a, b in func_ranges if a <= idx <= b]
