@@ -593,9 +593,9 @@ PluginInfo = { Name = "Test~NC", Version = "1.0.0", Id = "test.nc" }
 function GetProperties() return {} end
 function GetControls() return {} end
 if Controls then
-    local val = NamedControl.Get("MyControl")
+    local val = NamedControl.GetValue("MyControl")
     local str = NamedControl.GetString("MyControl")
-    NamedControl.Set("MyControl", 1.0)
+    NamedControl.SetValue("MyControl", 1.0)
     NamedControl.SetString("MyControl", "hello")
     NamedControl.SetPosition("MyControl", 0.5)
     local pos = NamedControl.GetPosition("MyControl")

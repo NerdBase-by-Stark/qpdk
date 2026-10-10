@@ -35,38 +35,6 @@ class DesignTimeReport:
     pages: list = field(default_factory=list)
 
 
-class MockStatus:
-    """Mock Status API."""
-
-    def __init__(self):
-        self.code = 0
-        self.message = ""
-
-    def OK(self) -> None:
-        self.code = 0
-        self.message = "OK"
-
-    def Compromised(self, message: str = "") -> None:
-        self.code = 1
-        self.message = message
-
-    def Fault(self, message: str = "") -> None:
-        self.code = 2
-        self.message = message
-
-    def NotPresent(self, message: str = "") -> None:
-        self.code = 3
-        self.message = message
-
-    def Missing(self, message: str = "") -> None:
-        self.code = 4
-        self.message = message
-
-    def Initializing(self, message: str = "") -> None:
-        self.code = 5
-        self.message = message
-
-
 class MockLog:
     """Mock Log API with capture."""
 
@@ -146,10 +114,10 @@ class MockSystem:
 
 
 class MockDesign:
-    """Mock Design API."""
+    """Mock Design API: the values Design.GetStatus() returns (Design.htm)."""
 
     def __init__(self):
-        self.Name = "Mock Design"
+        self.DesignName = "Mock Design"
         self.DesignCode = "MOCK001"
         self.Platform = "Core 110f"
         self.IsRedundant = False
@@ -175,19 +143,18 @@ class QSYSRuntime:
 
     def __init__(self, design_time: bool = False,
                  writes_fire_both_handlers: bool = False):
-        # Opt-in Both-handler mode (field-proven 2026-07-07, Designer 10.3 +
-        # Core Nano probe): on a real Core, Lua writes to PinStyle="Both"
+        # Opt-in Both-handler mode (observed on a Core with Designer 10.3):
+        # on a real Core, Lua writes to PinStyle="Both"
         # controls DO fire their EventHandlers — the mock historically never
         # fired on Lua writes, so mock-green tests could not catch echo loops
         # a real Core executes. With this True, apply_control_schema() arms
         # Both-pin controls to fire on Lua writes. Default False: existing
         # suites keep the historical (silent) behavior.
         self.writes_fire_both_handlers = writes_fire_both_handlers
-        # Design-time mode (D6, Fable review 2026-07-06): Designer evaluates
-        # the plugin file with `Controls` nil — the one VERIFIED design-time
-        # difference (reproduced drag-in crash: cisco-modular ce220a6,
-        # "GetControlLayout indexed nil Controls"; same mechanism QPDK012/025
-        # guard). With design_time=True the Controls global is NOT injected,
+        # Design-time mode: Designer evaluates the plugin file with
+        # `Controls` nil — the one verified design-time difference (a plugin
+        # whose GetControlLayout indexed Controls crashed on drag-in; the
+        # same mechanism QPDK012/025 guard). With design_time=True the Controls global is NOT injected,
         # so `if Controls then` correctly evaluates false and unguarded
         # Controls indexing raises exactly as Designer would crash. Other
         # runtime globals stay injected: their design-time availability is
@@ -224,7 +191,7 @@ class QSYSRuntime:
         # closures are cyclically collected while another runtime is live,
         # lupa's stale upvalue pointers can land on whatever Python object
         # reuses the address ("'MockTimer' object is not callable",
-        # reproduced deterministically via vitec TC15). Never freeing any
+        # reproduced deterministically in a downstream suite). Never freeing any
         # Lua-bound callable makes address reuse impossible. Cost: ~40 small
         # objects leaked per runtime, bounded by runtimes-per-process (test
         # sessions build a few hundred at most).
@@ -232,7 +199,6 @@ class QSYSRuntime:
         # Initialize mocks
         self.controls = MockControls(error_sink=self.errors)
         self.properties = MockProperties()
-        self.status = MockStatus()
         self.log = MockLog()
         self.system = MockSystem()
         self.design = MockDesign()
@@ -242,7 +208,7 @@ class QSYSRuntime:
         self.timer_api = TimerAPI()
         self._scheduler = get_global_scheduler()
 
-        # SSH and TcpSocket APIs (MR-P1-A, MR-P1-B)
+        # SSH and TcpSocket APIs
         self.ssh_api = SshAPI()
         self.tcp_api = TcpSocketAPI()
 
@@ -251,7 +217,7 @@ class QSYSRuntime:
 
         # Captured HttpClient verb calls: (VERB, lua request table). Tests
         # assert the request and drive the response via the captured table's
-        # EventHandler (U3).
+        # EventHandler.
         self.http_requests: list[tuple[str, Any]] = []
 
         # Lua runtime (lazy init)
@@ -264,7 +230,7 @@ class QSYSRuntime:
     def had_errors(self) -> bool:
         """True if any async EventHandler or timer callback crashed during the
         run. These paths are otherwise only printed; load-time errors raise
-        directly from load_string(). See internal notes"""
+        directly from load_string()."""
         return bool(self.errors) or bool(getattr(self._scheduler, "errors", []))
 
     @property
@@ -313,18 +279,16 @@ class QSYSRuntime:
         if not self.design_time:
             self._inject_controls_api(g)
         self._inject_timer_api(g)
-        self._inject_status_api(g)
         self._inject_log_api(g)
         self._inject_properties_api(g)
         self._inject_system_api(g)
         self._inject_design_api(g)
-        self._inject_status_state(g)
-        self._inject_ssh_api(g)          # MR-P1-A
-        self._inject_tcp_socket_api(g)   # MR-P1-B
-        self._inject_network_api(g)      # MR-P1-C
-        self._inject_rapidjson_shim(g)   # MR-P2-A
-        self._inject_reflect_global(g)   # MR-P2-C
-        self._inject_stub_apis(g)        # P3 stubs
+        self._inject_ssh_api(g)
+        self._inject_tcp_socket_api(g)
+        self._inject_network_api(g)
+        self._inject_rapidjson_shim(g)
+        self._inject_reflect_global(g)
+        self._inject_stub_apis(g)
 
     def _inject_controls_api(self, g) -> None:
         """Inject Controls global.
@@ -419,6 +383,7 @@ class QSYSRuntime:
         if ctrl_id in self._wrapped_controls:
             return self._wrapped_controls[ctrl_id]
         wrapped = self._lua.table()
+        ctrl.lua_self = wrapped
 
         def index(t, key):
             key_lower = key.lower() if isinstance(key, str) else key
@@ -442,10 +407,18 @@ class QSYSRuntime:
                 return ctrl.color
             elif key == "Choices":
                 return self._lua.table(*ctrl.choices)
+            elif key == "Index":
+                return ctrl.index
+            elif key == "IsIndeterminate":
+                return ctrl.is_indeterminate
+            elif key == "CssClass":
+                return ctrl.css_class
             elif key == "EventHandler":
                 return ctrl._event_handlers[0] if ctrl._event_handlers else None
             elif key == "Trigger":
-                # Return a no-op function matching real Q-SYS behavior
+                # No-op in the mock. Script writes do not fire the control's
+                # own handler (Control_Aspects_Metadata.htm); whether :Trigger
+                # does anything else on a Core is KB-silent.
                 return self._lua.eval("function() end")
             return None
 
@@ -469,6 +442,13 @@ class QSYSRuntime:
                 ctrl.Legend = value
             elif key == "Color":
                 ctrl.Color = value
+            # Metadata aspects (Control_Aspects_Metadata.htm).
+            elif key == "Choices":
+                ctrl.Choices = list(value.values()) if hasattr(value, "values") else list(value)
+            elif key == "IsIndeterminate":
+                ctrl.IsIndeterminate = value
+            elif key == "CssClass":
+                ctrl.css_class = str(value)
             elif key == "EventHandler":
                 ctrl.EventHandler = value
 
@@ -489,8 +469,7 @@ class QSYSRuntime:
                 __newindex = function(self, key, value)
                     return ni_fn(self, key, value)
                 end,
-                -- #Controls.x on a single control: the escaped Designer crash
-                -- (internal notes row 7).
+                -- #Controls.x on a single control raises on a Core too.
                 __len = function()
                     error("attempt to get length of a userdata value", 2)
                 end
@@ -516,16 +495,17 @@ class QSYSRuntime:
         timer_table = self._lua.table()
 
         def create():
-            timer = self.timer_api.Create()
+            timer = self.timer_api.New()
             return self._wrap_timer(timer)
 
         def call_after(fn, delay):
             return self.timer_api.CallAfter(fn, delay)
 
         def now(*_args):
-            # KB-confirmed (Sys/Timer.htm): Timer.Now() returns seconds as a
-            # number. The mock returns virtual scheduler time so elapsed-time
-            # maths in plugins stays deterministic under tick().
+            # Timer.htm: Timer.Now() returns seconds since the epoch. The mock
+            # returns virtual scheduler time starting at 0 instead, so
+            # elapsed-time maths stays deterministic under tick(); values are
+            # not comparable with os.time() or usable with os.date().
             return float(self.current_time)
 
         timer_table.New = create      # Timer.New() is the documented constructor (Sys/Timer.htm)
@@ -557,6 +537,7 @@ class QSYSRuntime:
             return self._wrapped_timers[timer_id]
 
         wrapped = self._lua.table()
+        timer.lua_self = wrapped
 
         def start(*args):
             # Support both t.Start(interval) and t:Start(interval).
@@ -575,9 +556,7 @@ class QSYSRuntime:
 
         def is_running(*args):
             # Support both t.IsRunning() and t:IsRunning().
-            # KB-confirmed surface: Timer.htm ":IsRunning() Returns true if
-            # the timer is running" (a hardware probe CONFIRMED, PLATFORM-CLAIMS-
-            # VERDICTS.md). Added V5 2026-07-12 (probe-kit gap 5).
+            # Timer.htm: ":IsRunning() Returns true if the timer is running".
             return timer.IsRunning()
 
         def get_handler(*_args):
@@ -597,8 +576,7 @@ class QSYSRuntime:
         # LUA closures. Returning a Python callable from __index re-marshals
         # it on every access, and that per-call marshal is where lupa
         # misroutes under multi-runtime GC churn ("'MockTimer' object is not
-        # callable" — the returned Start resolved to the timer itself; see
-        # internal notes).
+        # callable" — the returned Start resolved to the timer itself).
         setup_mt = self._lua.eval("""
         function(t, start_fn, stop_fn, is_running_fn, get_eh, set_eh)
             local methods = {
@@ -633,17 +611,6 @@ class QSYSRuntime:
         self._wrapped_timers[timer_id] = wrapped
         return wrapped
 
-    def _inject_status_api(self, g) -> None:
-        """Inject Status global."""
-        status_table = self._lua.table()
-        status_table.OK = self._ref(lambda: self.status.OK())
-        status_table.Compromised = self._ref(lambda msg="": self.status.Compromised(msg))
-        status_table.Fault = self._ref(lambda msg="": self.status.Fault(msg))
-        status_table.NotPresent = self._ref(lambda msg="": self.status.NotPresent(msg))
-        status_table.Missing = self._ref(lambda msg="": self.status.Missing(msg))
-        status_table.Initializing = self._ref(lambda msg="": self.status.Initializing(msg))
-        g.Status = status_table
-
     def _inject_log_api(self, g) -> None:
         """Inject Log global."""
         log_table = self._lua.table()
@@ -660,11 +627,9 @@ class QSYSRuntime:
         Controls uses above): assigning it as a lupa table attribute
         (`mt.__index = fn`) never registers the metamethod, which left
         Properties inert in runtime mode — every Lua read returned nil,
-        seeded test values were silently ignored, and 11/11 corpus plugins
-        were affected (U1, build spec 2026-07-06; vitec's conftest shipped
-        an install_properties_index() repair for exactly this).
+        and seeded test values were silently ignored.
 
-        Missing-key semantics (G2 decision, KB-undocumented): an UNDECLARED
+        Missing-key semantics (KB-undocumented): an UNDECLARED
         property reads as nil from Lua, matching plain-Lua-table behavior
         (inference — on hardware Properties is a table built from the
         declared GetProperties entries; not hardware-verified). The
@@ -675,7 +640,7 @@ class QSYSRuntime:
 
         def index(t, key):
             if key not in self.properties:
-                return None  # nil in Lua — G2 undeclared-key decision
+                return None  # nil in Lua for an undeclared key
             val = self.properties[key]
             if isinstance(val, dict):
                 # Return as Lua table
@@ -711,27 +676,26 @@ class QSYSRuntime:
         g.System = system_table
 
     def _inject_design_api(self, g) -> None:
-        """Inject Design global."""
+        """Inject Design global: Design.GetStatus() returns a table with
+        DesignName, Platform, IsRedundant and DesignCode; Design.GetInventory()
+        returns a table of inventory items (Design.htm). The mock design has
+        no inventory, so GetInventory() returns an empty table."""
         design_table = self._lua.table()
-        design_table.Name = self.design.Name
-        design_table.DesignCode = self.design.DesignCode
-        design_table.Platform = self.design.Platform
-        design_table.IsRedundant = self.design.IsRedundant
+
+        def get_status(*_args):
+            return self._lua.table_from({
+                "DesignName": self.design.DesignName,
+                "Platform": self.design.Platform,
+                "IsRedundant": self.design.IsRedundant,
+                "DesignCode": self.design.DesignCode,
+            })
+
+        design_table.GetStatus = self._ref(get_status)
+        design_table.GetInventory = self._ref(lambda *_a: self._lua.table())
         g.Design = design_table
 
-    def _inject_status_state(self, g) -> None:
-        """Inject StatusState constants."""
-        ss = self._lua.table()
-        ss.OK = 0
-        ss.Compromised = 1
-        ss.Fault = 2
-        ss.NotPresent = 3
-        ss.Missing = 4
-        ss.Initializing = 5
-        g.StatusState = ss
-
     def _inject_ssh_api(self, g) -> None:
-        """Inject Ssh global (MR-P1-A).
+        """Inject Ssh global.
 
         Provides Ssh.New() which returns a mock SSH object with all 7 callbacks,
         Connect/Disconnect/Write/Read methods, and test harness simulate_* methods.
@@ -778,12 +742,12 @@ class QSYSRuntime:
                 return ssh_obj.Timeout
             elif key == "LoginFailed":
                 return ssh_obj.LoginFailed
-            elif key in ("ReadTimeout", "WriteTimeout", "ReconnectTimeout"):
+            elif key in ("ReadTimeout", "WriteTimeout", "ReconnectTimeout", "IsInteractive"):
                 return getattr(ssh_obj, key)
             return None
 
         # Method callables defined ONCE, marshaled ONCE at setup (see the
-        # tcp wrapper note / KNOWN-ISSUE-lupa-flake-2026-07-06.md).
+        # tcp wrapper note on the lupa misroute).
         def connect(*args):
             host = args[0] if len(args) > 0 else None
             port = args[1] if len(args) > 1 else None
@@ -823,11 +787,10 @@ class QSYSRuntime:
                 ssh_obj.Timeout = value
             elif key == "LoginFailed":
                 ssh_obj.LoginFailed = value
-            # Timeout config must PERSIST (step 2b, mock-coverage P1-4b):
-            # falling through here silently dropped cisco's
-            # ReadTimeout/WriteTimeout/ReconnectTimeout assignments — the
-            # cleanest false-green in the coverage audit. Mirrors TcpSocket.
-            elif key in ("ReadTimeout", "WriteTimeout", "ReconnectTimeout"):
+            # Timeout config must persist: falling through here silently
+            # dropped ReadTimeout/WriteTimeout/ReconnectTimeout assignments.
+            # Mirrors TcpSocket.
+            elif key in ("ReadTimeout", "WriteTimeout", "ReconnectTimeout", "IsInteractive"):
                 setattr(ssh_obj, key, value)
 
         # Retain strong Python references to all closures so CPython's cyclic GC
@@ -878,7 +841,7 @@ class QSYSRuntime:
         return wrapped
 
     def _inject_tcp_socket_api(self, g) -> None:
-        """Inject TcpSocket global (MR-P1-B).
+        """Inject TcpSocket global.
 
         Similar structure to SSH but with 6 callbacks (no LoginFailed).
         """
@@ -942,8 +905,7 @@ class QSYSRuntime:
         # Method callables are defined ONCE and cross the lupa boundary ONCE
         # (as setup upvalues). Returning a Python callable from __index
         # re-marshals it per access — the misroute point behind
-        # "'MockTcpSocket' object is not callable" (see
-        # internal notes).
+        # "'MockTcpSocket' object is not callable".
         def connect(*args):
             # args already stripped of Lua self by the Lua-side closure
             host = args[0] if len(args) > 0 else None
@@ -966,6 +928,11 @@ class QSYSRuntime:
             eol = args[0] if len(args) > 0 else None
             custom = args[1] if len(args) > 1 else None
             return tcp_obj.ReadLine(eol, custom)
+
+        def search(*args):
+            needle = args[0] if len(args) > 0 else None
+            start = args[1] if len(args) > 1 else None
+            return tcp_obj.Search(needle, start if start is not None else 1)
 
         def newindex(t, key, value):
             if key == "Connected":
@@ -990,12 +957,17 @@ class QSYSRuntime:
         # Retain strong Python references to all closures so CPython's cyclic GC
         # cannot free them (and make their addresses available for reuse) while
         # this runtime is still alive.
-        self._closure_refs.extend([index, newindex, connect, disconnect, write, read, readline, tcp_obj])
+        self._closure_refs.extend([index, newindex, connect, disconnect, write, read, readline,
+                                   search, tcp_obj])
 
         # Use Lua-side metatable setup for proper metamethod handling
         setup_mt = self._lua.eval("""
-        function(t, idx_fn, ni_fn, connect_fn, disconnect_fn, write_fn, read_fn, readline_fn)
+        function(t, idx_fn, ni_fn, connect_fn, disconnect_fn, write_fn, read_fn, readline_fn, search_fn)
             local methods = {
+                Search = function(self, str, start_pos)
+                    if type(self) ~= 'table' then str, start_pos = self, str end
+                    return search_fn(str, start_pos)
+                end,
                 Connect = function(self, host, port)
                     if type(self) ~= 'table' then host, port = self, host end
                     return connect_fn(host, port)
@@ -1027,13 +999,13 @@ class QSYSRuntime:
             return t
         end
         """)
-        setup_mt(wrapped, index, newindex, connect, disconnect, write, read, readline)
+        setup_mt(wrapped, index, newindex, connect, disconnect, write, read, readline, search)
 
         self._wrapped_tcp_sockets[tcp_id] = wrapped
         return wrapped
 
     def _inject_network_api(self, g) -> None:
-        """Inject Network global (MR-P1-C).
+        """Inject Network global.
 
         Many plugins call Network.Interfaces() at startup.
         Returns an empty table to prevent nil-call crashes.
@@ -1041,65 +1013,137 @@ class QSYSRuntime:
         g.Network = self._lua.table()
         g.Network.Interfaces = self._ref(lambda: self._lua.table())
 
-    def _py_to_lua(self, obj):
-        """Recursively convert a Python JSON value to a Lua table/scalar."""
+    def _py_to_lua(self, obj, null=None):
+        """Recursively convert a Python JSON value to a Lua table/scalar.
+        JSON null becomes `null` (rapidjson.null for rapidjson.decode, nil
+        for json.decode)."""
+        if obj is None:
+            return null
         if isinstance(obj, dict):
-            return self._lua.table_from({k: self._py_to_lua(v) for k, v in obj.items()})
+            return self._lua.table_from({k: self._py_to_lua(v, null) for k, v in obj.items()})
         if isinstance(obj, (list, tuple)):
-            return self._lua.table_from([self._py_to_lua(v) for v in obj])
+            return self._lua.table_from([self._py_to_lua(v, null) for v in obj])
         return obj
 
     def _lua_to_py(self, obj):
         """Recursively convert a Lua table/scalar back to a Python value.
 
-        A Lua table with contiguous 1..n integer keys becomes a list; otherwise
-        a dict. Empty tables become dicts (so encode({}) == "{}")."""
+        json.null / rapidjson.null become None. A table marked by
+        rapidjson.array() / rapidjson.object() keeps that JSON type. Otherwise
+        a Lua table with contiguous 1..n integer keys becomes a list and any
+        other table a dict; empty tables become dicts (so encode({}) == "{}")."""
+        kind = self._json_kind(obj) if getattr(self, "_json_kind", None) else None
+        if kind == "null":
+            return None
         if hasattr(obj, "items") and not isinstance(obj, (str, bytes)):
             items = list(obj.items())
             keys = [k for k, _ in items]
-            if keys and all(isinstance(k, int) for k in keys) and \
-                    sorted(keys) == list(range(1, len(keys) + 1)):
+            if kind == "object":
+                return {str(k): self._lua_to_py(v) for k, v in items}
+            if kind == "array" or (keys and all(isinstance(k, int) for k in keys) and
+                                   sorted(keys) == list(range(1, len(keys) + 1))):
                 return [self._lua_to_py(v) for _, v in sorted(items, key=lambda kv: kv[0])]
             return {str(k): self._lua_to_py(v) for k, v in items}
         return obj
 
     def _inject_rapidjson_shim(self, g) -> None:
-        """Inject REAL json + rapidjson (MR-P2-A / audit M2).
+        """Inject the json module (JSON.htm) and rapidjson (RapidJSON.htm),
+        both backed by Python's json module with Lua-table conversion.
 
-        The previous shim returned empty data regardless of input (decode -> {},
-        encode -> '{}'), so any JSON parse/dispatch logic ran against nothing —
-        false confidence. This wires actual JSON via Python's json module with
-        proper Lua-table conversion, and provides both the built-in ``json``
-        global and ``require("rapidjson")``.
+        json: available as a global and through require("json"); json.null
+        is a function that returns itself and encodes as null.
+        rapidjson: require("rapidjson"); rapidjson.null decodes from and
+        encodes to null; rapidjson.array(t) / rapidjson.object(t) mark a
+        table's JSON type through the `__jsontype` metatable field;
+        encode(value, {pretty=, sort_keys=}) honours both options; decode
+        returns nil plus an error message on invalid JSON.
         """
         import json as _json
 
-        def decode(s):
+        json_null, rj_null, rj_array, rj_object, json_kind = self._lua.eval("""
+        function()
+            local json_null
+            json_null = function() return json_null end
+            local rj_null = setmetatable({}, {__tostring = function() return "null" end})
+            local function settype(t, kind)
+                if t == nil then t = {} end
+                local mt = getmetatable(t)
+                if mt == nil then
+                    mt = {}
+                    setmetatable(t, mt)
+                end
+                mt.__jsontype = kind
+                return t
+            end
+            local function kind(v)
+                if v == json_null or v == rj_null then return "null" end
+                if type(v) == "table" then
+                    local mt = getmetatable(v)
+                    if type(mt) == "table" then return mt.__jsontype end
+                end
+                return nil
+            end
+            return json_null, rj_null,
+                function(t) return settype(t, "array") end,
+                function(t) return settype(t, "object") end,
+                kind
+        end
+        """)()
+        self._json_kind = json_kind
+        self._closure_refs.extend([json_null, rj_null, rj_array, rj_object, json_kind])
+
+        def _dumps(t, opts=None):
+            pretty = bool(opts["pretty"]) if opts is not None else False
+            sort_keys = bool(opts["sort_keys"]) if opts is not None else False
+            value = self._lua_to_py(t)
+            if pretty:
+                return _json.dumps(value, indent=4, sort_keys=sort_keys)
+            # Compact separators match rapidjson's default output.
+            return _json.dumps(value, separators=(",", ":"), sort_keys=sort_keys)
+
+        def json_decode(s):
             try:
                 return self._py_to_lua(_json.loads(s))
             except Exception:
-                return None  # real rapidjson returns nil + err on bad input
+                return None
 
-        def encode(t):
+        def json_encode(t):
             try:
-                # Compact separators match rapidjson's typical output.
-                return _json.dumps(self._lua_to_py(t), separators=(",", ":"))
+                return _dumps(t)
             except Exception:
                 return None
 
+        def rj_decode(s):
+            try:
+                return self._py_to_lua(_json.loads(s), null=rj_null)
+            except Exception as e:
+                return None, str(e)
+
+        def rj_encode(t, opts=None):
+            try:
+                return _dumps(t, opts)
+            except Exception:
+                return None
+
+        self._closure_refs.extend([json_decode, json_encode, rj_decode, rj_encode])
+
         json_tbl = self._lua.table()
-        json_tbl.decode = decode
-        json_tbl.encode = encode
-        g.json = json_tbl  # built-in global (was missing entirely)
+        json_tbl.decode = json_decode
+        json_tbl.encode = json_encode
+        json_tbl.null = json_null
+        g.json = json_tbl
+        g.package.loaded["json"] = json_tbl
 
         rapid_tbl = self._lua.table()
-        rapid_tbl.decode = decode
-        rapid_tbl.encode = encode
-        # require("rapidjson") returns this table.
+        rapid_tbl.decode = rj_decode
+        rapid_tbl.encode = rj_encode
+        rapid_tbl.null = rj_null
+        rapid_tbl.array = rj_array
+        rapid_tbl.object = rj_object
         g.package.loaded["rapidjson"] = rapid_tbl
 
     def _inject_reflect_global(self, g) -> None:
-        """Inject Reflect global (MR-P2-C).
+        """Inject Reflect global.
 
         Reflect is used by some plugins for cross-plugin control binding.
         Current behavior (nil) works by accident but should be explicit.
@@ -1108,51 +1152,60 @@ class QSYSRuntime:
         g.Reflect = None   # explicitly nil -- Reflect not supported in mock
 
     def _inject_stub_apis(self, g) -> None:
-        """Inject P3 stub APIs to prevent nil-call crashes.
+        """Inject stub APIs to prevent nil-call crashes.
 
         These APIs return empty results. Plugins that use them need stubs
         to avoid nil-call crashes when loading in the mock runtime.
 
-        MR-P2-D (PinStyle): pin EXPOSURE (does a pin render, does a wire
+        PinStyle: pin EXPOSURE (does a pin render, does a wire
         drive it) is still unmodeled. But the Both-pin write-echo class is
         now testable: QSYSRuntime(writes_fire_both_handlers=True) +
         apply_control_schema() fires EventHandlers on Lua writes to
-        PinStyle="Both" controls, matching probe-proven real-Core behavior
-        (2026-07-07, Designer 10.3 + Core Nano). QPDK035 is no longer the
+        PinStyle="Both" controls, matching behaviour observed on a Core
+        (Designer 10.3). QPDK035 is no longer the
         only defense.
         """
         self._inject_http_client_api(g)
 
         # Component: Component.New(name) returns a chainable control-group proxy
-        # so `Component.New("Amp")["gain"].Value = x` works (it crashed before,
-        # a false alarm, because New() returned an empty table). Controls are
+        # so `Component.New("Amp")["gain"].Value = x` works. Controls are
         # auto-created on access; writes are sandboxed (never touch hardware).
+        # GetComponents() / GetControls(name) exist (Component.htm) and return
+        # empty tables: the mock design has no named components.
         component_table = self._lua.table()
         component_table.New = self._ref(lambda name: self._make_component_instance())
+        component_table.GetComponents = self._ref(lambda *_a: self._lua.table())
+        component_table.GetControls = self._ref(lambda *_a: self._lua.table())
         g.Component = component_table
 
-        # NamedControl: back it with a dedicated auto-creating control group so
-        # `NamedControl.Get("x").Value` works (previously Get() returned nil ->
-        # nil-index crash). Separate namespace from Controls.
+        # NamedControl: class statics GetValue/SetValue/GetString/SetString/
+        # GetPosition/SetPosition/Trigger (NamedControl.htm), backed by a
+        # dedicated auto-creating control group, separate from Controls.
+        # The optional ramp-time argument is accepted and ignored. Unlike a
+        # Core, an unknown name is created on demand instead of raising.
         self._named_controls = MockControlGroup(error_sink=self.errors)
         nc = self._named_controls
         named_control = self._lua.table()
-        named_control.Get = self._ref(lambda name: self._wrap_control(nc[name]))
+        named_control.GetValue = self._ref(lambda name: nc[name].value)
         named_control.GetString = self._ref(lambda name: nc[name].string)
         named_control.GetPosition = self._ref(lambda name: nc[name].position)
 
-        def _nc_set(name, val):
+        def _nc_set_value(name, val, _ramp=None):
             nc[name].Value = val
 
         def _nc_set_string(name, val):
             nc[name].String = val
 
-        def _nc_set_position(name, val):
+        def _nc_set_position(name, val, _ramp=None):
             nc[name].Position = val
 
-        named_control.Set = _nc_set
-        named_control.SetString = _nc_set_string
-        named_control.SetPosition = _nc_set_position
+        def _nc_trigger(name):
+            nc[name].Trigger()
+
+        named_control.SetValue = self._ref(_nc_set_value)
+        named_control.SetString = self._ref(_nc_set_string)
+        named_control.SetPosition = self._ref(_nc_set_position)
+        named_control.Trigger = self._ref(_nc_trigger)
         g.NamedControl = named_control
 
         # Uci: Uci.OpenPage() as no-op
@@ -1196,17 +1249,16 @@ class QSYSRuntime:
         self._setup_control_group_proxy(proxy, group)
         return proxy
 
-    # Verb statics per the official HttpClient doc (help.qsys.com, scraped to
-    # ../.firecrawl/qsys-httpclient.md): static functions taking a request
+    # Verb statics per the official HttpClient doc (HttpClient.htm): static functions taking a request
     # table; EventHandler signature (table, code, data, error, headers).
     _HTTP_VERBS = ("Download", "Upload", "Get", "Post", "Put", "Patch", "Delete")
 
     def _inject_http_client_api(self, g) -> None:
-        """Inject the real statics-shaped HttpClient (U3, build spec step 2).
+        """Inject the real statics-shaped HttpClient (HttpClient.htm).
 
         The previous mock exposed only `.New` — a constructor the official
         doc does not list — so every real call (HttpClient.Get{...},
-        GudeExpert's HttpClient.Download{...}) crashed on a nil static.
+        HttpClient.Download{...}) crashed on a nil static.
         Verb calls are captured into self.http_requests as (VERB, lua_table)
         so a test can assert the request and drive the response by invoking
         the captured table's EventHandler. Pure helpers (CreateUrl,
@@ -1393,11 +1445,9 @@ class QSYSRuntime:
             if entry is not None:
                 entry["Value"] = value
 
-        # QSC store plugins (ClockAudio CDT100, GudeExpert) read
-        # props["plugin_show_debug"] inside RectifyProperties without ever
-        # declaring it — the best explanation is that Designer injects it
-        # (INFERENCE, same class as page_index; evidenced by 2 of the 5
-        # QSC-managed plugins on disk). Synthesize false unless declared.
+        # Some QSC-published plugins read props["plugin_show_debug"] inside
+        # RectifyProperties without ever declaring it — the best explanation
+        # is that Designer injects it (INFERENCE, same class as page_index). Synthesize false unless declared.
         if props_table["plugin_show_debug"] is None:
             props_table["plugin_show_debug"] = self._lua.table(Value=False)
 
@@ -1412,8 +1462,7 @@ class QSYSRuntime:
 
         # Paged plugins read props["page_index"].Value in GetControlLayout —
         # a property Designer supplies, not one the plugin declares (evidence:
-        # the production cisco-modular plugin relies on it and runs in
-        # Designer). Synthesize page 1 unless the plugin declared its own;
+        # a field-deployed paged plugin relies on it and runs in Designer). Synthesize page 1 unless the plugin declared its own;
         # _run_layout_pages advances it per page.
         if g.GetPages is not None and props_table["page_index"] is None:
             props_table["page_index"] = self._lua.table(Value=1)
@@ -1548,9 +1597,8 @@ class QSYSRuntime:
 
     def reset(self) -> None:
         """Reset the runtime state."""
-        # F7: clear and REWIRE the async error sink. The previous
-        # `MockControls()` (no error_sink) silently re-broke the audit's M3 fix
-        # — post-reset EventHandler crashes were swallowed and had_errors() went
+        # Clear and REWIRE the async error sink. A bare `MockControls()`
+        # (no error_sink) would mean post-reset EventHandler crashes were swallowed and had_errors() went
         # stale. Clear the existing list in place (so any held reference stays
         # valid) and pass it back into the fresh MockControls.
         self.errors.clear()
@@ -1563,7 +1611,6 @@ class QSYSRuntime:
         # Lua universes; see __init__).
         self.controls = MockControls(error_sink=self.errors)
         self.properties = MockProperties()
-        self.status = MockStatus()
         self.log.clear()
         self._print_output.clear()
         reset_global_scheduler()

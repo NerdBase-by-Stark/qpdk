@@ -147,3 +147,36 @@ def test_cli_exit_codes_and_json(canon_qplug, defective_qplug):
     # --strict flips warnings into failures: canon plugin has none -> still 0
     strict_ok = runner.invoke(qpdk_main, ["qsc-eval", canon_qplug, "--strict"])
     assert strict_ok.exit_code == 0
+
+
+def test_missing_getproperties_is_not_blamed_on_the_plugin(tmp_path):
+    """The vendored evaluator calls GetProperties() unguarded; the message
+    must say so plainly and must not print the install path."""
+    p = tmp_path / "noprops.qplug"
+    p.write_text("PluginInfo = { Id='x', Name='x', Author='x', Version='1.0' }\n"
+                 "function GetControls() return {} end\n"
+                 "function GetControlLayout() return {}, {} end\n",
+                 encoding="utf-8")
+    r = run_qsc_eval(str(p))
+    assert r.crash == ("the QSC evaluator requires a global GetProperties() "
+                       "function; the plugin does not define one")
+
+
+def test_evaluator_location_has_no_install_path(tmp_path):
+    r = run_qsc_eval(str(tmp_path))  # a directory: the evaluator finds no qplug
+    assert r.crash is not None
+    assert "vendor" not in r.crash and "site-packages" not in r.crash
+    assert "evaluateDesignTime.lua" in r.crash
+
+
+def test_plugin_own_missing_global_is_still_reported_as_plugin_crash(tmp_path):
+    p = tmp_path / "bad.qplug"
+    p.write_text("PluginInfo = { Id='x', Name='x', Author='x', Version='1.0' }\n"
+                 "function GetProperties() return NotDefined() end\n"
+                 "function GetControls() return {} end\n"
+                 "function GetControlLayout() return {}, {} end\n",
+                 encoding="utf-8")
+    r = run_qsc_eval(str(p))
+    assert "bad.qplug:2:" in r.crash
+    assert "NotDefined" in r.crash
+    assert "requires a global" not in r.crash

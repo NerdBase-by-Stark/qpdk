@@ -55,8 +55,7 @@ class ReplayDevice:
             Later recordings' responses queue AFTER earlier ones for the
             same command.
         overrides: {command_text: response_text} checked BEFORE recordings —
-            the place for test-specific synthetic responses (vitec
-            SNAPSHOT_REPLIES pattern).
+            the place for test-specific synthetic responses.
         strict: raise UnrecordedCommandError on unmatched commands (default).
             When False, unmatched commands are recorded in self.unmatched and
             silently unanswered (the plugin sees device silence — itself a

@@ -1,4 +1,4 @@
-"""QRC mock-server behavior tests (D4/D5, Fable review 2026-07-06).
+"""QRC mock-server behavior tests.
 
 Covers the two defect classes the protocol-only tests never exercised:
   D4 — record -> playback round-trip (the two halves used incompatible

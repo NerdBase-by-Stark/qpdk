@@ -1,4 +1,4 @@
-"""U1 — Properties global must actually work in runtime mode (build spec step 1).
+"""Properties global must actually work in runtime mode.
 
 Pre-fix, `_inject_properties_api` assigned the __index metamethod via a lupa
 attribute write that never landed (runtime.py:572): `getmetatable(Properties)`

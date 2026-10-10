@@ -66,6 +66,6 @@ class TestMakeRuntime:
         harness.make_runtime()
         assert harness.arrays is first
 
-    def test_readline_param_gated_until_g1(self):
-        with pytest.raises(NotImplementedError):
+    def test_readline_param_not_implemented(self):
+        with pytest.raises(NotImplementedError, match="not implemented in this release"):
             PluginHarness(MIXED, readline=True).make_runtime()

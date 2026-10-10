@@ -145,6 +145,9 @@ _CRASH_PLUGIN = _plugin('Timer.CallAfter(function() error("AUDIT_CALLBACK_CRASH"
 
 class TestFixtureFailsOnRecordedErrors:
     def _suite(self, pytester, body):
+        # The inner run has no ini file of its own; set the pytest-asyncio
+        # option so it does not warn (and fail under -W error).
+        pytester.makeini("[pytest]\nasyncio_default_fixture_loop_scope = function\n")
         pytester.makeconftest(
             "import pytest\nfrom qpdk.testing import PluginHarness\n"
             "@pytest.fixture(scope='session')\n"

@@ -1,7 +1,7 @@
 """PluginHarness — one object that knows how to build correct runtimes.
 
-Construction order merges the two proven conftest implementations (ani22,
-vitec) and is regression-locked by tests/test_testing_harness.py:
+Construction order merges two field-used per-plugin conftest
+implementations and is regression-locked by tests/test_testing_harness.py:
   1. QSYSRuntime() + _init_lua()
   2. seed properties (defaults, then per-call overrides)
   3. seed pre-load controls (bool -> .Boolean, str -> .String, else .Value)
@@ -86,12 +86,8 @@ class PluginHarness:
                      **property_overrides: Any) -> QSYSRuntime:
         """Build a fresh runtime with the plugin loaded and ready to test."""
         if self.readline:
-            # U2 (build spec step 7) is gated on G1: KB verification of
-            # ReadLine/EOL semantics. The flag will construct
-            # QSYSRuntime(readline=True) once that lands.
             raise NotImplementedError(
-                "readline=True is gated on G1 (KB TcpSocket.htm semantics "
-                "verification) — build spec step 7, not yet shipped."
+                "PluginHarness(readline=True) is not implemented in this release."
             )
         # Derive arrays BEFORE building the runtime: the first derivation
         # constructs a design-time QSYSRuntime whose __init__ resets the

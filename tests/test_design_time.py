@@ -1,12 +1,12 @@
-"""Design-time execution mode (D6, Fable review 2026-07-06).
+"""Design-time execution mode.
 
 Q-SYS Designer evaluates a plugin file at DESIGN time — when the plugin is
 dragged into a schematic — with `Controls` nil, then calls the definition
 functions (GetProperties/GetControls/GetControlLayout/...). Three real
 crashes escaped the mock into Designer because the mock always injected
 Controls, so `if Controls then` was always true and the design-time-nil
-crash class was unreproducible (reproduced Designer crash: cisco-modular
-"GetControlLayout indexed nil Controls", commit ce220a6 in that repo).
+crash class was unreproducible (a reproduced Designer crash: a
+GetControlLayout that indexed nil Controls).
 
 `QSYSRuntime(design_time=True)` leaves Controls nil — the one VERIFIED
 design-time difference — and `run_design_time()` executes the chunk plus
@@ -43,7 +43,7 @@ class TestDesignTimeCrashDetection:
         assert any("Controls" in e or "nil" in e for e in report.errors)
 
     def test_getcontrollayout_controls_index_is_caught(self):
-        """The cisco ce220a6 class: a GetX body indexing Controls."""
+        """The drag-in crash class: a GetX body indexing Controls."""
         code = _HEADER + """
 function GetProperties() return {} end
 function GetControls(props) return {} end
@@ -108,7 +108,7 @@ function GetControlLayout(props) return {}, {} end
 
     def test_paged_plugin_gets_designer_page_index(self):
         """Paged plugins read props['page_index'].Value — Designer supplies
-        that property (the production cisco-modular plugin depends on it), so
+        that property (a field-deployed paged plugin depends on it), so
         the harness must synthesize it when GetPages exists."""
         code = _HEADER + """
 function GetProperties() return {} end
@@ -128,7 +128,7 @@ end
 
 
 class TestDesignTimeExtensions:
-    """Build spec step 3: graphics capture, page iteration, plugin_show_debug."""
+    """Graphics capture, page iteration, plugin_show_debug."""
 
     def test_graphics_captured_from_second_return(self):
         code = _HEADER + """

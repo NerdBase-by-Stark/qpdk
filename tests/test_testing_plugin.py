@@ -31,7 +31,13 @@ def qsys_harness(tmp_path_factory):
 '''
 
 
+# The inner pytest run has its own rootdir with no ini file, so it never sees
+# the project's pytest settings; set the pytest-asyncio option it warns about.
+_INNER_INI = "[pytest]\nasyncio_default_fixture_loop_scope = function\n"
+
+
 def _write_suite(pytester, test_body):
+    pytester.makeini(_INNER_INI)
     pytester.makeconftest(_CONFTEST.format(src=_PLUGIN_SRC))
     pytester.makepyfile(test_body)
 
@@ -57,6 +63,7 @@ def test_marker(rt):
         result.assert_outcomes(passed=1)
 
     def test_missing_harness_override_is_actionable(self, pytester):
+        pytester.makeini(_INNER_INI)
         pytester.makepyfile("""
 def test_needs_harness(rt):
     pass

@@ -7,8 +7,8 @@ Simulates Q-SYS TcpSocket.New() for offline plugin testing.
 import re
 from typing import Callable, Any
 
-# TcpSocket.EOL keywords — official table, help.qsys.com TcpSocket topic
-# (verified 2026-07-09; SerialPorts.EOL uses the same table). Q-SYS's actual
+# TcpSocket.EOL keywords — official table, TcpSocket.htm (SerialPorts.EOL
+# uses the same table). Q-SYS's actual
 # runtime values are opaque; plugins only pass them through to ReadLine, so
 # string tokens are sufficient here.
 EOL_KEYWORDS = ("Any", "CrLf", "CrLfStrict", "Lf", "Null", "Custom")
@@ -134,6 +134,13 @@ class MockTcpSocket:
             self._read_buffer = self._read_buffer[n:]
         self.BufferLength = len(self._read_buffer)
         return data
+
+    def Search(self, needle: str, start_pos: int = 1) -> int | None:
+        """TcpSocket.htm :Search(str, [start_pos]): 1-based index of str in
+        the buffer (searching from start_pos, default 1), nil if absent.
+        The buffer is not consumed."""
+        i = self._read_buffer.find(str(needle), max(int(start_pos or 1), 1) - 1)
+        return None if i < 0 else i + 1
 
     def ReadLine(self, eol: str, custom: str | None = None) -> str | None:
         """Read one line from the buffer per the official EOL semantics.

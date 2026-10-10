@@ -1,5 +1,4 @@
-"""Regression tests for the 2026-06-02 mock-runtime fidelity fixes
-(see internal notes)."""
+"""Regression tests for mock-runtime fidelity fixes."""
 
 import pytest
 
@@ -90,8 +89,8 @@ class TestMockFidelityFixes:
     def test_m4_namedcontrol_roundtrip(self, runtime):
         runtime.load_string(
             "if Controls then\n"
-            '  NamedControl.Set("room", 2)\n'
-            '  V = NamedControl.Get("room").Value\n'
+            '  NamedControl.SetValue("room", 2)\n'
+            '  V = NamedControl.GetValue("room")\n'
             "end\n"
         )
         assert runtime._lua.globals().V == 2.0

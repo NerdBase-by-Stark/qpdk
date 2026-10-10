@@ -15,14 +15,10 @@ import json
 class QRCErrorCode:
     """Q-SYS QRC error codes — values match the official "QRC Commands >
     Error Code Reference" table (help.qsys.com, verified identical across the
-    9.13 / 10.0 / 10.1 KB mirrors, 2026-07-09).
+    9.13 / 10.0 / 10.1 help pages).
 
-    CORRECTED 2026-07-09 (qpdk 0.11.0): the domain codes 2-10 previously held
-    invented values (INVALID_CALL_ID=2, REDUNDANT_CORE=3, BAD_CHANGE_GROUP=4,
-    BAD_COMMAND_ID=5, BAD_COMPONENT=6, BAD_CONTROL=7, BAD_SNAPSHOT=8,
-    BAD_LOGON=9, BAD_DESIGN=10) that matched neither the spec nor real Cores.
-    Three independent QRC client libraries and the official doc all agree on
-    the values below. See internal notes"""
+    Corrected in qpdk 0.11.0: the domain codes 2-10 previously held invented
+    values that matched neither the spec nor real Cores."""
     # JSON-RPC transport codes
     PARSE_ERROR = -32700       # Parse error — invalid JSON received
     INVALID_REQUEST = -32600   # Invalid request — not a valid Request object
@@ -176,6 +172,10 @@ class QRCChangeGroup:
     # deltas (ChangeGroup.Invalidate exists to force a full resend, per
     # help.qsys.com QRC_Commands).
     last_sent: dict[str, tuple] = field(default_factory=dict)
+    # Controls added through ChangeGroup.AddComponentControl: internal key
+    # ("Comp.ctl") -> (component name, control name). Poll reports these
+    # with separate Component and Name fields (QRC_Commands.htm).
+    component_controls: dict[str, tuple[str, str]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {

@@ -9,6 +9,8 @@ import heapq
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from .controls import handler_arg
+
 
 @dataclass(order=True)
 class ScheduledEvent:
@@ -35,6 +37,9 @@ class MockTimer:
         self._event: ScheduledEvent | None = None
         self._interval: float = 0.0
         self._event_handler: Callable | None = None
+        # Lua wrapper set by QSYSRuntime._wrap_timer; Lua handlers receive it
+        # so the Timer.htm `if timer == timer1` dispatch works.
+        self.lua_self = None
 
     @property
     def EventHandler(self) -> Callable | None:
@@ -48,14 +53,10 @@ class MockTimer:
         """Start the timer with the given interval.
 
         A Q-SYS Timer object holds ONE pending schedule: calling Start on a
-        running timer RESTARTS it (field-proven — cisco-modular's drain timer
-        calls Start(WRITE_DELAY) on every firing and runs fine on real Cores;
-        its pulse machinery documents "Start(0.1) restarts" hold-off
-        semantics). Before this fix the previous event was left active in the
-        scheduler heap, so every restart leaked a live repeating event —
-        Start-per-firing idioms multiplied events exponentially and tick()
-        span forever (caught 2026-07-09 by the first device-replay gauntlet
-        run crossing cisco-modular's 15s poll burst).
+        running timer RESTARTS it (field-deployed plugins call Start on every
+        firing and run fine on real Cores). Leaving the previous event active
+        would leak a live repeating event per restart, multiplying events and
+        making tick() spin forever.
         """
         self._interval = interval
         self.Stop()
@@ -70,12 +71,9 @@ class MockTimer:
     def IsRunning(self) -> bool:
         """Return True if the timer is running.
 
-        Evidence ladder: KB-confirmed — Timer.htm ":IsRunning() Returns true
-        if the timer is running" (a hardware probe CONFIRMED, community-corpus/
-        PLATFORM-CLAIMS-VERDICTS.md §1). Running = a live schedule exists:
-        true after Start(), false before any Start and after Stop().
-        Added V5 2026-07-12 (probe-kit-build.md gap 5 — the mock lacked it
-        and probe batteries had to catch the attribute error).
+        Timer.htm: ":IsRunning() Returns true if the timer is running".
+        Running = a live schedule exists: true after Start(), false before
+        any Start and after Stop().
         """
         return self._event is not None and self._event.active
 
@@ -92,11 +90,11 @@ class MockTimer:
         """Internal callback that invokes the event handler."""
         if self._event_handler:
             try:
-                self._event_handler(self)
+                self._event_handler(handler_arg(self._event_handler, self))
             except Exception as e:
                 msg = f"Timer EventHandler error: {e}"
                 # Record so a runner can detect the crash instead of it being
-                # silently swallowed to stdout (see QPDK-AUDIT-2026-06-02).
+                # silently swallowed to stdout.
                 getattr(self._scheduler, "errors", []).append(msg)
                 print(msg)
 
@@ -244,22 +242,23 @@ class TimerAPI:
     """
     Mock implementation of the Q-SYS Timer global.
 
-    Usage:
-        Timer.Create()           # Create a new timer
-        Timer.CallAfter(fn, 1.0) # Call function after 1 second
+    Usage (Python side; Lua sees Timer.New, Timer.CallAfter and Timer.Now):
+        api.New()                # Create a new timer
+        api.CallAfter(fn, 1.0)   # Call function after 1 second
     """
 
     def __init__(self, scheduler: TimerScheduler | None = None):
         self._scheduler = scheduler or _global_scheduler
 
     def Create(self) -> MockTimer:
-        """Create a new timer."""
+        """Python-side alias of New(). Not exposed to Lua: Timer.Create()
+        does not exist in the Q-SYS API (Timer.htm)."""
         return MockTimer(self._scheduler)
 
     def New(self) -> MockTimer:
         """Create a new timer (standard Q-SYS OOP constructor).
 
-        Timer.New() is the production Q-SYS API. This is an alias for Create().
+        Timer.New() is the documented constructor (Timer.htm).
         """
         return MockTimer(self._scheduler)
 
