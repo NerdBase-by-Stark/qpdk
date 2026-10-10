@@ -481,8 +481,8 @@ class PluginValidator:
         Compiles under Lua 5.3 — the version Q-SYS Cores run — like the mock
         runtime does. lupa's DEFAULT runtime is whatever the newest bundled
         Lua is (5.4+), whose semantics diverge both ways: it rejects legal
-        5.3 code (assigning a for-in control variable — false QPDK001 on the
-        cisco plugin in CI, 2026-07-06) and accepts 5.4-only syntax like
+        5.3 code (assigning a for-in control variable gave a false QPDK001)
+        and accepts 5.4-only syntax like
         `<close>` that the Core cannot load (false negative).
         """
         try:
@@ -602,7 +602,7 @@ class PluginValidator:
         # All field values are coerced to str() first: the PluginInfo parser
         # converts numeric/boolean literals to int/float/bool, and running
         # string ops (`in`, re.match) on those raised an unhandled TypeError
-        # that crashed the entire validator (see internal notes).
+        # that crashed the entire validator.
         if self._is_rule_active("QPDK004"):
             if "Name" in plugin_info:
                 name = str(plugin_info["Name"])
@@ -689,7 +689,7 @@ class PluginValidator:
         # set(V9) - set(V7) difference, which is an artifact of the hand-maintained
         # V7 list: it produced false positives for APIs that long predate v9
         # (json, Crypto, Audio, dir, ...). Gating on the annotation keeps the rule
-        # honest and auditable. See internal notes
+        # honest and auditable.
         target_globals = set(self.globals.keys())
         _version_marker = re.compile(r"\(v9[\d.]*\+?\)", re.IGNORECASE)
         v9_only = {
@@ -777,7 +777,7 @@ class PluginValidator:
             rf"local\s+(\w+)\s*=\s*(?:{constructor_patterns})\s*\("
         )
 
-        # Keyword-balanced function ranges (D3, Fable review 2026-07-06): the
+        # Keyword-balanced function ranges: the
         # old hand-rolled counter only registered an if/for/while opener when
         # then/do sat on the SAME line, so a multi-line condition over-popped
         # the stack and the scanner silently left the function — missing every
@@ -1029,14 +1029,14 @@ class PluginValidator:
         TcpSocket, UdpSocket) do not exist yet — ``Controls`` is nil at design
         time (the SAME mechanism QPDK025 guards; KB Building_a_Plugin.htm keeps
         the run-time part separate). Indexing one inside a GetX body crashes
-        Designer on drag-in (reproduced: cisco-modular-plugin commit ce220a6,
-        "GetControlLayout indexed nil Controls").
+        Designer on drag-in (reproduced: a GetControlLayout that indexed the
+        nil Controls).
 
         Inverse of QPDK025: QPDK025 flags runtime API with NO ``if Controls
         then`` guard ANYWHERE (file-level); QPDK012 flags a runtime global
         INSIDE a design-time function, where a guard cannot help because the
         function itself runs at design time (so it fires even when a correct
-        runtime guard exists elsewhere — exactly the ce220a6 bug).
+        runtime guard exists elsewhere, which is the reproduced crash).
 
         Severity: ERROR for ``Controls`` (crash reproduced + KB-grounded
         nil-at-design-time); WARNING for the other runtime objects (referencing
@@ -1445,8 +1445,7 @@ class PluginValidator:
     # F4: xAPI command verbs. The string.format/table.concat injection arm is
     # gated on the format/concat target STARTING with one of these literals so
     # the rule only fires when a Cisco xAPI command is actually being built.
-    # KB: cisco_search "xCommand parameter syntax" / "xCommand string parameter
-    # double quote value" — xAPI uses `Key: Value` syntax with double-quoted
+    # Cisco xAPI docs (xCommand parameter syntax): xAPI uses `Key: Value` syntax with double-quoted
     # string params (e.g. xCommand.HttpClient.Allow.Hostname.Add.Expression:
     # "Expression", xCommand.Dial.Number: 123), so an unsanitized .String with a
     # space/newline/quote breaks out of the parameter.
@@ -2003,7 +2002,7 @@ class PluginValidator:
           4. Skip the INFO for ``PinStyle="Output"``/``"None"`` controls: an
              Output pin wires to the schematic and "None" is a pure backend
              value, so a missing panel layout is by design, not an omission.
-          5. (0.14.0, memory e1fdb1cf) Recognize INLINE-LITERAL layout tables —
+          5. Recognize INLINE-LITERAL layout tables —
              ``local layout = { ["x"]={...}, y={...} }`` and
              ``return { x={...} }, {}`` — by brace-walking the constructor and
              harvesting its depth-1 keys. Literal keys SUPPRESS the INFO
@@ -2072,8 +2071,7 @@ class PluginValidator:
         # captured by the literal-key regex above (the ``]`` does not follow the
         # quote). The literal prefix, minus trailing separators, is the control
         # base Name, so such a control IS laid out and must not draw an INFO.
-        # (Peer-reported on widget arrays; closes the audit's noted blind spot
-        # for no-Count controls with dynamic-only keys.)
+        # (Covers no-Count controls laid out only through dynamic keys.)
         dynamic_bases = {
             m.group(1).rstrip(" _-")
             for m in re.finditer(
@@ -2098,7 +2096,15 @@ class PluginValidator:
             return None
 
         # --- WARNING: layout key with no matching control Name (typo). ---
+        # The regex harvest above misses controls with nested tables (inline
+        # Choices), concatenated Names and the "Name N" elements of a Count>1
+        # control, so a key is checked against the evaluated GetControls
+        # (the same source QPDK049 uses) before it is called a typo.
+        from . import control_refs
+        declared = self._control_context(content)[0]
         for key in sorted(layout_keys - control_names):
+            if declared is not None and control_refs._is_declared(key, declared):
+                continue
             ln = _line_of(r'layout\s*\[\s*["\']' + re.escape(key) + r'["\']\s*\]')
             if ln is not None and self._is_suppressed(
                 raw_lines[ln - 1], self.CONTROL_LAYOUT_COUPLING
@@ -2249,8 +2255,8 @@ class PluginValidator:
         as a closer — over-popping the stack and dropping an enclosing function's
         frame. A ``sendData`` inside the lost frame then looked un-enclosed, so
         its function-scope ``monitor_mode`` guard was invisible and QPDK037 fired
-        falsely (reproduced on CiscoRoomOS-Enhanced-v2.5.4.8 L4980, inside
-        ``parseData`` which is monitor_mode-guarded).
+        falsely (seen on a real plugin, inside a monitor_mode-guarded
+        function).
 
         Lua block grammar handled:
           * openers needing ``end``: ``function``, ``if``, ``for``, ``while``,
@@ -2551,8 +2557,7 @@ class PluginValidator:
         """Structural check of an encrypted .qplugx/.qplugx2 artifact (QPDK048).
 
         Validates the envelope shape only — no decryption, no key material. The
-        two known formats (internal notes +
-        internal notes):
+        two known formats:
 
           v1 (.qplugx):  {"key": b64(256), "iv": b64(16), "data": b64(16*N)}
           v2 (.qplugx2): {"mode","version":2,"language",

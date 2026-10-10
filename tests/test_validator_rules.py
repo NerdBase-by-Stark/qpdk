@@ -94,7 +94,7 @@ end
     def test_multiline_if_condition_does_not_desync(self, v):
         """A multi-line `if` condition must not hide a later GC-risk local.
 
-        Regression (D3, Fable review 2026-07-06): the old hand-rolled counter
+        Regression: the old hand-rolled counter
         only registered an if-opener when `then` sat on the SAME line, so the
         if's `end` over-popped the function frame and the scanner believed it
         had left the function — silently missing `local t = Timer.New()`.
@@ -1407,7 +1407,7 @@ end
         assert hits and all(i.severity == IssueSeverity.INFO for i in hits)
 
     def test_message_is_de_fabricated_and_hedged(self, v):
-        """Round 4: the QPDK035 message must NOT assert the unverified
+        """the QPDK035 message must NOT assert the unverified
         "fundamental Q-SYS framework constraint" / "rejects Lua writes from
         Timer context" mechanism, and MUST hedge (cf. retired-QPDK038 lesson)."""
         code = """\
@@ -1692,7 +1692,7 @@ end
     def test_large_function_with_inner_blocks_warns(self, v):
         """A >100-line function whose body contains if/for blocks must still fire.
 
-        Regression (D1, Fable review 2026-07-06): the old counter popped the
+        Regression: the old counter popped the
         function frame on ANY `end`, so the first inner `if ... end` truncated
         the measured span and the rule went silent on any realistic function.
         """
@@ -2146,7 +2146,7 @@ end
         result = v.validate_string(code)
         assert not any(i.code == "QPDK037" for i in result.issues)
 
-    # --- Round 4: robust _find_function_ranges (was: per-line open/close
+    # --- robust _find_function_ranges (was: per-line open/close
     #     counter that dropped frames on multi-line block conditions). ---
 
     def test_split_for_do_does_not_drop_enclosing_frame(self, v):
@@ -2157,8 +2157,7 @@ end
         popping the function's own frame early, so the sendData looked
         un-enclosed and its guard was invisible → false QPDK037. Verified: the
         old algorithm returns NO enclosing range for the sendData here; the new
-        scanner encloses it in the guarded function. (Same drift class as
-        CiscoRoomOS-Enhanced-v2.5.4.8 L4980, inside the guarded ``parseData``.)
+        scanner encloses it in the guarded function.
         """
         code = _plugin("MM SplitForDo", """\
 if Controls then
@@ -2222,7 +2221,7 @@ end
 
 
 class TestHarvestGlobalDefs:
-    """Round 4: _harvest_global_defs feeds the plugin's own top-level global
+    """_harvest_global_defs feeds the plugin's own top-level global
     definitions to luacheck so its cross-section helper functions are not
     flagged W111 (set non-standard global) / W113 (undefined global)."""
 
@@ -2429,7 +2428,7 @@ end
 
 # ===========================================================================
 # v0.5.0-test fix batch — F1/F2 string-awareness, F3, F4, F5 (QPDK011),
-# F6 (QPDK013). See internal notes
+# F6 (QPDK013).
 # ===========================================================================
 
 _HEADER_NOLAYOUT = """\
@@ -2759,6 +2758,26 @@ class TestF6ControlLayoutCoupling:
                  and i.severity == IssueSeverity.WARNING]
         assert any("Volumee" in i.message for i in warns)
 
+    @pytest.mark.parametrize("controls,layout", [
+        # control with a nested Choices table next to a plain control
+        ('  table.insert(ctls, { Name = "plain", ControlType = "Button", Count = 1 })\n'
+         '  table.insert(ctls, { Name = "mode", ControlType = "Text", Choices = {"A","B"}, PinStyle = "Both" })\n',
+         '  layout["plain"] = {}\n  layout["mode"] = {}\n'),
+        # Count=4 control laid out with literal "ch N" element keys
+        ('  table.insert(ctls, { Name = "ch", ControlType = "Knob", Count = 4 })\n',
+         '  layout["ch 1"] = {}\n  layout["ch 2"] = {}\n'),
+        # Name built by concatenation
+        ('  table.insert(ctls, { Name = "In " .. 1, ControlType = "Button", Count = 1 })\n',
+         '  layout["In 1"] = {}\n'),
+    ])
+    def test_legitimate_declarations_not_called_typos(self, v, controls, layout):
+        """B8: keys that match the evaluated GetControls are not 'likely a typo'."""
+        code = _plugin_with_controls("F6Legit", controls, layout, "f6-legit")
+        result = v.validate_string(code)
+        warns = [i for i in result.issues if i.code == "QPDK013"
+                 and i.severity == IssueSeverity.WARNING]
+        assert not warns, [i.message for i in warns]
+
     def test_control_without_layout_is_info(self, v):
         """A control with no layout entry -> INFO, not WARNING."""
         code = _plugin_with_controls(
@@ -2811,8 +2830,8 @@ class TestF6ControlLayoutCoupling:
     def test_count_variable_control_not_flagged(self, v):
         """Audit fix: Count set to a VARIABLE (not a numeric literal) means N
         instances → suffixed names + dynamic-suffix layout keys. The bare Name
-        must NOT draw an INFO. Reproduces the 17 false advisories the Cisco
-        v2.5.4.8 plugin drew (Count = sourceCount / hdmiInputCount)."""
+        must NOT draw an INFO. Reproduces 17 false advisories a real plugin
+        drew (Count = sourceCount / hdmiInputCount)."""
         code = _plugin_with_controls(
             "F6CountVar",
             '  local sourceCount = props["Sources"].Value\n'
@@ -2878,7 +2897,7 @@ def _plugin_with_layout_fn(name, controls_body, layout_fn, id_suffix):
 
 
 class TestF6InlineLiteralLayout:
-    """0.14.0 regression (memory e1fdb1cf / v5-quick-wins §1): QPDK013's key
+    """0.14.0 regression: QPDK013's key
     scraper only saw ``layout["name"]={...}`` ASSIGNMENT form; a layout built
     as an inline table-constructor literal (``local layout = { ["x"]={...} }``
     or ``return { x = {...} }, {}``) yielded zero keys, so every Input-pin
