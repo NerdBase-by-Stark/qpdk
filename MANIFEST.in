@@ -1,0 +1,5 @@
+# Ship what the test suite needs, so pytest runs from an unpacked sdist.
+graft tests
+graft examples
+include scripts/bump-version.sh
+global-exclude *.py[cod] __pycache__

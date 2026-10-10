@@ -25,7 +25,8 @@ def main():
 
 
 @main.command()
-@click.argument("plugin_paths", nargs=-1, required=True, type=click.Path(exists=True))
+@click.argument("plugin_paths", nargs=-1, required=True,
+                type=click.Path(exists=True, dir_okay=False))
 @click.option("--format", "-f", "output_format",
               type=click.Choice(["text", "json", "tap"]),
               default="text",
@@ -63,7 +64,7 @@ def validate(plugin_paths: tuple[str, ...], output_format: str, strict: bool,
 
     # Machine formats bypass rich entirely: rich honors FORCE_COLOR even when
     # stdout is redirected, which injected ANSI escapes into JSON/TAP output
-    # and broke every downstream parser (D7, Fable review 2026-07-06).
+    # and broke every downstream parser.
     if output_format == "json":
         if len(results) == 1:
             # Preserve the single-file JSON contract (one result object).
@@ -117,7 +118,8 @@ def qrc(port: int, host: str, record: str | None, playback: str | None):
 
 
 @main.command(name="design-check")
-@click.argument("plugin_paths", nargs=-1, required=True, type=click.Path(exists=True))
+@click.argument("plugin_paths", nargs=-1, required=True,
+                type=click.Path(exists=True, dir_okay=False))
 @click.option("--format", "-f", "output_format",
               type=click.Choice(["text", "json"]),
               default="text",
@@ -158,7 +160,7 @@ def design_check(plugin_paths: tuple[str, ...], output_format: str):
     clean = all(not r["errors"] for r in results)
 
     if output_format == "json":
-        # Plain stdout, not rich: machine output must stay ANSI-free (D7).
+        # Plain stdout, not rich: machine output must stay ANSI-free.
         click.echo(json.dumps({"clean": clean, "results": results}, indent=2))
     else:
         for r in results:
@@ -182,10 +184,9 @@ def design_check(plugin_paths: tuple[str, ...], output_format: str):
               default="table",
               help="Output format for the rule catalog")
 def rules(output_format: str):
-    """List every validator rule from the metadata single source of truth.
+    """List every validator rule with its severity, rulesets and description.
 
-    This is the authoritative rule catalog — the README points here instead
-    of maintaining a hand-copied table that drifts.
+    Use --format json for the full, untruncated descriptions.
     """
     from .validator.rulesets import RULE_METADATA, RULESETS
 
@@ -301,7 +302,8 @@ def test(plugin_path: str, test_dir: str | None, coverage: bool):
 
 
 @main.command(name="qsc-eval")
-@click.argument("plugin_paths", nargs=-1, required=True, type=click.Path(exists=True))
+@click.argument("plugin_paths", nargs=-1, required=True,
+                type=click.Path(exists=True, dir_okay=False))
 @click.option("--format", "-f", "output_format",
               type=click.Choice(["text", "json"]),
               default="text",
@@ -362,7 +364,7 @@ def qsc_eval(plugin_paths: tuple[str, ...], output_format: str, maxprops: bool,
                 click.echo(f"  notice  {n}")
 
     if output_format == "json":
-        # Plain stdout, not rich: machine output must stay ANSI-free (D7).
+        # Plain stdout, not rich: machine output must stay ANSI-free.
         click.echo(json.dumps({"ok": not (crashed or failed), "results": payload}, indent=2))
 
     raise SystemExit(2 if crashed else (1 if failed else 0))
