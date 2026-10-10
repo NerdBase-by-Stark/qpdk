@@ -494,3 +494,12 @@ def test_qsc_eval_strict_warning_is_not_shown_as_ok(tmp_path):
     res = CliRunner().invoke(cli_main, ["qsc-eval", path, "--strict"])
     assert res.exit_code == 1
     assert res.output.lstrip().startswith("FAIL")
+
+
+def test_good_example_structure_counts_each_control_once():
+    from pathlib import Path
+
+    from qpdk.validator import PluginValidator
+    example = Path(__file__).parent.parent / "examples" / "good" / "simple-button.qplug"
+    res = PluginValidator().validate_file(example)
+    assert res.controls_count == 3

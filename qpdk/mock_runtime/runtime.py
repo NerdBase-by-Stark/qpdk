@@ -45,7 +45,7 @@ class MockLog:
     def Message(self, message: str) -> None:
         if self.capture:
             self.messages.append({"level": "message", "text": message})
-        print(f"[LOG] {message}")
+        print(f"[LOG] {message}", file=sys.stderr)
 
     def Error(self, message: str) -> None:
         if self.capture:
@@ -262,15 +262,26 @@ class QSYSRuntime:
                 "lupa is required for mock runtime. Install with: pip install lupa"
             ) from None
 
-        self._lua = LuaRuntime(unpack_returned_tuples=True)
+        # register_eval/register_builtins off: plugin code must not reach the
+        # host Python interpreter through lupa's `python` global.
+        self._lua = LuaRuntime(unpack_returned_tuples=True,
+                               register_eval=False, register_builtins=False)
         g = self._lua.globals()
         self._lua_globals = g
+        g.python = None
+        # Remove the standard-library calls that start processes, end the host
+        # process or load native code. This narrows what a plugin can do to
+        # the machine running QPDK; it is not a full security sandbox.
+        self._lua.execute(
+            "os.execute = nil; os.exit = nil; io.popen = nil; package.loadlib = nil"
+        )
 
         # Override print
         def mock_print(*args):
             text = " ".join(str(a) for a in args)
             self._print_output.append(text)
-            print(f"[PRINT] {text}")
+            # stderr, so plugin output never corrupts JSON/TAP on stdout
+            print(f"[PRINT] {text}", file=sys.stderr)
 
         g.print = mock_print
 

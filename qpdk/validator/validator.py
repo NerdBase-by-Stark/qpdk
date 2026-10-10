@@ -750,14 +750,18 @@ class PluginValidator:
         controls_match = re.search(r"function\s+GetControls\s*\([^)]*\)(.*?)(?=\nfunction|\nend\s*$)",
                                    content, re.DOTALL)
         if controls_match:
-            result.controls_count = len(re.findall(r'table\.insert\s*\(\s*ctls', controls_match.group(1)))
-            result.controls_count += len(re.findall(r'\{\s*Name\s*=', controls_match.group(1)))
+            # table.insert(ctls, { Name = ... }) matches both patterns, so take
+            # the larger count rather than the sum.
+            result.controls_count = max(
+                len(re.findall(r'table\.insert\s*\(\s*ctls', controls_match.group(1))),
+                len(re.findall(r'\{\s*Name\s*=', controls_match.group(1))))
 
         pages_match = re.search(r"function\s+GetPages\s*\([^)]*\)(.*?)(?=\nfunction|\nend\s*$)",
                                 content, re.DOTALL)
         if pages_match:
-            result.pages_count = len(re.findall(r'table\.insert\s*\(\s*pages', pages_match.group(1)))
-            result.pages_count += len(re.findall(r'\{\s*name\s*=', pages_match.group(1), re.IGNORECASE))
+            result.pages_count = max(
+                len(re.findall(r'table\.insert\s*\(\s*pages', pages_match.group(1))),
+                len(re.findall(r'\{\s*name\s*=', pages_match.group(1), re.IGNORECASE)))
 
     def _validate_timer_scoping(self, content: str, result: ValidationResult) -> None:
         """Check for local library object variables that may be garbage collected.

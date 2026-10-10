@@ -39,6 +39,12 @@ behaviour that tests may rely on; they are marked **Changed**.
 
 ### Mock runtime and QRC
 
+- Plugin code can no longer reach the host Python through lupa's `python`
+  global, and `os.execute`, `os.exit`, `io.popen` and `package.loadlib` are
+  removed, in the mock runtime and in `qsc-eval`. QPDK is still not a
+  security sandbox: only check plugins you trust (see README).
+- Plugin `print()` and `Log.Message()` output goes to stderr, so it no longer
+  corrupts `--format json` or TAP output on stdout.
 - EventHandlers written in Lua now receive the Lua timer or control object,
   so identity checks (`if timer == timer1`) and `ctl.Index` on control arrays
   work as in the official examples.
@@ -68,6 +74,10 @@ behaviour that tests may rely on; they are marked **Changed**.
 
 ### Packaging, docs and examples
 
+- The GitHub Action handles plugin paths that contain spaces, and validates
+  all matched plugins in one run so duplicate plugin Ids are caught.
+- The `structure.controls` count in `validate` JSON no longer counts
+  `table.insert(ctls, { Name = ... })` twice.
 - New AGENTS.md: a one-page guide for coding agents adding QPDK to CI.
 - pytest is now installed with QPDK, so `qpdk test` and the test harness
   work straight after install.

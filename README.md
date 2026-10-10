@@ -37,7 +37,7 @@ finish line: test on real hardware before you ship.
   findings (overlaps, zero sizes, off-page controls).
 - **QSC's official evaluator** (`qpdk qsc-eval`): runs QSC's own
   Plugin-Evaluation-Script as an extra check. See below.
-- **Mock runtime** (`qpdk.mock_runtime`): a Lua 5.3 sandbox with Q-SYS APIs
+- **Mock runtime** (`qpdk.mock_runtime`): a Lua 5.3 environment with mock Q-SYS APIs
   (Controls, Timer, TcpSocket, Ssh, json and more) so you can drive a plugin
   from Python tests and advance virtual time.
 - **Test harness** (`qpdk test`, `qpdk.testing`): pytest support that builds
@@ -49,6 +49,15 @@ finish line: test on real hardware before you ship.
   They do the same as `qpdk validate` and `qpdk qrc`; `qpdk-qrc` also takes
   `--add-control`, `--add-component` and `--user`.
 - **GitHub Action**: gate every push to a plugin repo.
+
+### Only check plugins you trust
+
+`validate`, `design-check`, `qsc-eval` and `test` run the plugin's Lua code on
+your machine, with your user's permissions. QPDK removes the Lua calls that
+start programs or load native code, but it is not a security sandbox: plugin
+code can still read and write files. Treat a `.qplug` from an unknown source
+like any other program: if you do not trust it, run QPDK in a container or
+a throwaway VM.
 
 ## Install
 
@@ -69,7 +78,7 @@ For the `LUACHECK-*` rules, install [luacheck](https://github.com/lunarmodules/l
 ## Quick start
 
 ```bash
-qpdk validate MyPlugin.qplug              # static rules: errors and warnings
+qpdk validate MyPlugin.qplug              # rules: errors and warnings
 qpdk validate MyPlugin.qplug -r full      # also list INFO advisories
 qpdk validate MyPlugin.qplug --strict     # warnings count as failures
 qpdk validate MyPlugin.qplug --format json
@@ -179,9 +188,12 @@ assert not runtime.had_errors()
 ```
 
 Writing a control from Python (`runtime.controls["Toggle"].Value = 1`) does
-not fire the plugin's EventHandler, just as a script's own writes do not on a
-Core. Use `simulate_external_write(value)` or `simulate_trigger()` to stand in
-for a user or a wired pin. A bare `QSYSRuntime()` also creates any control
+not fire the plugin's EventHandler, and by default neither does a write from
+the plugin's own Lua. Use `simulate_external_write(value)` or
+`simulate_trigger()` to stand in for a user or a wired pin. One exception has
+been observed on a Core: a Lua write to a `PinStyle = "Both"` control can fire
+that control's own EventHandler. To test for echo loops this could cause, pass
+`writes_fire_both_handlers=True` to `PluginHarness` or `QSYSRuntime`. A bare `QSYSRuntime()` also creates any control
 name on demand; `PluginHarness` above is stricter and is the better default.
 
 To reproduce Designer's drag-in in a test:
@@ -277,6 +289,9 @@ against it can still fail against real hardware.
   `ReconnectTimeout` defaults to 0 instead of the documented 5 seconds.
 - The QRC mock does not require Logon, and it closes an idle connection after
   65 seconds.
+- Data passed between Lua and Python is text. A socket write or read with
+  bytes that are not valid UTF-8 (many binary device protocols) raises an
+  error in the mock, so binary protocols cannot be tested yet.
 - The mock does not enforce Core CPU limits.
 - Design-time mode removes only `Controls`, the difference confirmed on
   hardware. Other globals at design time are not verified.

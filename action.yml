@@ -47,16 +47,18 @@ runs:
         PLUGIN_GLOB: ${{ inputs.plugin }}
       run: |
         shopt -s nullglob
-        plugins=( $PLUGIN_GLOB )
+        # Empty IFS: the glob still expands, but a path containing spaces is
+        # not split into several words.
+        IFS= plugins=( $PLUGIN_GLOB )
         if [ "${#plugins[@]}" -eq 0 ]; then
           echo "ERROR: no plugins matched '$PLUGIN_GLOB' - gate asserted nothing"
           exit 1
         fi
-        for f in "${plugins[@]}"; do
-          echo "::group::qpdk validate $f"
-          qpdk validate "$f"
-          echo "::endgroup::"
-        done
+        # One validate run over every file, so cross-file checks such as
+        # QPDK008 (duplicate plugin Id) can compare them.
+        echo "::group::qpdk validate"
+        qpdk validate "${plugins[@]}"
+        echo "::endgroup::"
         echo "::group::qpdk design-check (Designer drag-in evaluation)"
         qpdk design-check "${plugins[@]}"
         echo "::endgroup::"

@@ -64,7 +64,10 @@ def run_qsc_eval(
     plugin_path = os.path.abspath(plugin_path)
     result = QscEvalResult(plugin_path=plugin_path)
 
-    L = lua53.LuaRuntime()
+    # No `python` bridge: the evaluated plugin must not reach the host.
+    L = lua53.LuaRuntime(register_eval=False, register_builtins=False)
+    L.globals().python = None
+    L.execute("os.execute = nil; os.exit = nil; io.popen = nil; package.loadlib = nil")
     L.execute(
         'package.path = "{}/?.lua;" .. package.path'.format(
             str(VENDOR_DIR).replace("\\", "/")
