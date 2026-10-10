@@ -37,9 +37,10 @@ def main():
               help="Target Q-SYS version for API validation")
 @click.option("--ruleset", "-r", "ruleset",
               type=click.Choice(["P0", "default", "full"], case_sensitive=False),
-              default="full",
+              default="default",
               help="Rule set to apply: P0 (crash-preventing only), "
-                   "default (ERROR+WARNING), full (all including INFO)")
+                   "default (ERROR+WARNING, used when not given), "
+                   "full (adds INFO advisories)")
 @click.option("--quiet", "-q", is_flag=True,
               help="Only show errors in text output (parity with qpdk-validate)")
 def validate(plugin_paths: tuple[str, ...], output_format: str, strict: bool,
@@ -53,7 +54,7 @@ def validate(plugin_paths: tuple[str, ...], output_format: str, strict: bool,
     \b
     Rulesets:
       P0      Only crash-preventing rules (ship-blocking)
-      default All ERROR + WARNING rules (skip INFO)
+      default All ERROR + WARNING rules, INFO hidden (used when not given)
       full    All rules including INFO-level advisories
     """
     from .validator import PluginValidator
@@ -62,6 +63,9 @@ def validate(plugin_paths: tuple[str, ...], output_format: str, strict: bool,
     # duplicate-Id detection) actually has something to compare against.
     validator = PluginValidator(qsys_version=qsys_version, ruleset=ruleset)
     results = [validator.validate_file(p) for p in plugin_paths]
+    if ruleset.lower() != "full":
+        for r in results:
+            r.hide_info()
 
     # Machine formats bypass rich entirely: rich honors FORCE_COLOR even when
     # stdout is redirected, which injected ANSI escapes into JSON/TAP output

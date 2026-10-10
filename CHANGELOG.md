@@ -15,6 +15,10 @@ behaviour that tests may rely on; they are marked **Changed**.
 
 ### Validator rules
 
+- **Changed:** `qpdk validate` and `qpdk-validate` now use the `default`
+  ruleset when `--ruleset` is not given: errors and warnings only, with a
+  one-line count of hidden INFO advisories. `--ruleset full` lists them, as
+  the old default did. `--quiet` now hides INFO rows too.
 - luacheck `W113` (reading an undefined global) is now INFO when the plugin
   assigns that name somewhere, and stays a WARNING otherwise.
 - QPDK024 (reserved name shadowing) matches names by exact case.

@@ -61,7 +61,8 @@ For the `LUACHECK-*` rules, install [luacheck](https://github.com/lunarmodules/l
 ## Quick start
 
 ```bash
-qpdk validate MyPlugin.qplug              # static rules
+qpdk validate MyPlugin.qplug              # static rules: errors and warnings
+qpdk validate MyPlugin.qplug -r full      # also list INFO advisories
 qpdk validate MyPlugin.qplug --strict     # warnings count as failures
 qpdk validate MyPlugin.qplug --format json
 

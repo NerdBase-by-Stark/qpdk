@@ -424,3 +424,45 @@ def test_bump_version_commit_has_plain_message(tmp_path):
     msg = subprocess.run([*git, "log", "-1", "--format=%B"], capture_output=True,
                          text=True, check=True, env=env).stdout.strip()
     assert msg == "chore: bump version to 1.2.4"
+
+
+# --- Default output hides INFO advisories ------------------------------------
+
+_INFO_ONLY = '''PluginInfo = { Name = "Info~Only", Version = "1.0.0", Id = "test.info-only" }
+function GetProperties() return {} end
+function GetControls() return {} end
+function GetControlLayout() return {}, {} end
+if Controls then
+  function Remember() sharedCount = 1 end
+  function Recall() return sharedCount end
+end
+'''
+
+
+class TestDefaultHidesInfo:
+    def test_default_ruleset_hides_info_and_says_so(self, tmp_path):
+        import shutil
+
+        from click.testing import CliRunner
+
+        from qpdk.cli import main as cli_main
+        if shutil.which("luacheck") is None:
+            pytest.skip("needs luacheck for the W111/W113 INFO findings")
+        path = _write(tmp_path, "info.qplug", _INFO_ONLY)
+        res = CliRunner().invoke(cli_main, ["validate", path, "-f", "json"])
+        data = json.loads(res.output)
+        assert data["summary"]["info"] == 0
+        assert data["summary"]["warnings"] == 0
+        assert data["summary"]["info_hidden"] >= 1  # luacheck W111/W113 on sharedCount
+        full = CliRunner().invoke(cli_main, ["validate", path, "-f", "json", "-r", "full"])
+        assert json.loads(full.output)["summary"]["info"] >= 1
+        text = CliRunner().invoke(cli_main, ["validate", path])
+        assert "info notes hidden" in text.output
+
+    def test_quiet_hides_info_rows(self, tmp_path):
+        from click.testing import CliRunner
+
+        from qpdk.cli import main as cli_main
+        path = _write(tmp_path, "info.qplug", _INFO_ONLY)
+        res = CliRunner().invoke(cli_main, ["validate", path, "-r", "full", "-q"])
+        assert "QPDK047" not in res.output

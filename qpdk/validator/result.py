@@ -53,6 +53,7 @@ class ValidationResult:
     properties_count: int = 0
     controls_count: int = 0
     pages_count: int = 0
+    hidden_info: int = 0
 
     @property
     def errors(self) -> list[ValidationIssue]:
@@ -100,6 +101,17 @@ class ValidationResult:
             source=source,
         ))
 
+    def hide_info(self) -> None:
+        """Drop INFO advisories, keeping a count of how many were dropped.
+
+        QPDK000 notices (for example "luacheck not installed") stay visible
+        because they say the run itself was weaker than usual.
+        """
+        kept = [i for i in self.issues
+                if i.severity != IssueSeverity.INFO or i.code == "QPDK000"]
+        self.hidden_info += len(self.issues) - len(kept)
+        self.issues = kept
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "plugin_path": self.plugin_path,
@@ -108,6 +120,7 @@ class ValidationResult:
                 "errors": len(self.errors),
                 "warnings": len(self.warnings),
                 "info": len(self.infos),
+                "info_hidden": self.hidden_info,
             },
             "plugin_info": self.plugin_info,
             "structure": {
@@ -182,6 +195,8 @@ class ValidationResult:
                         continue
                     sev_style = "[yellow]WARN[/yellow]"
                 else:
+                    if not show_warnings:
+                        continue
                     sev_style = "[blue]INFO[/blue]"
 
                 line_str = str(issue.line) if issue.line else "-"
@@ -192,3 +207,6 @@ class ValidationResult:
         # Summary
         console.print(f"\n[bold]Summary:[/bold] {len(self.errors)} errors, "
                       f"{len(self.warnings)} warnings, {len(self.infos)} info")
+        if self.hidden_info:
+            console.print(f"{self.hidden_info} info notes hidden; "
+                          "use --ruleset full to see them.")

@@ -18,7 +18,9 @@ Each finding is an `ERROR`, a `WARNING` or an `INFO`.
 
 ## Rulesets
 
-`--ruleset` picks which rules run. The default is `full`.
+`--ruleset` picks which rules run. The default is `default`: errors and
+warnings only, with a count of the INFO advisories it hid. Use `full` to
+list those advisories too.
 
 | Ruleset | What runs | Typical use |
 |---------|-----------|-------------|
@@ -28,8 +30,8 @@ Each finding is an `ERROR`, a `WARNING` or an `INFO`.
 
 ```bash
 qpdk validate --ruleset P0 --strict MyPlugin.qplug
-qpdk validate --ruleset default MyPlugin.qplug
-qpdk validate MyPlugin.qplug                      # full
+qpdk validate MyPlugin.qplug                      # default
+qpdk validate --ruleset full MyPlugin.qplug
 ```
 
 The layout geometry rules QPDK040 to QPDK046 need the evaluated layout, so

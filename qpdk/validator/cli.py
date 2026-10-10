@@ -21,9 +21,10 @@ console = Console()
               help="Target Q-SYS version")
 @click.option("--ruleset", "-r", "ruleset",
               type=click.Choice(["P0", "default", "full"], case_sensitive=False),
-              default="full",
+              default="default",
               help="Rule set to apply: P0 (crash-preventing only), "
-                   "default (ERROR+WARNING), full (all including INFO)")
+                   "default (ERROR+WARNING, used when not given), "
+                   "full (adds INFO advisories)")
 @click.option("--quiet", "-q", is_flag=True, help="Only show errors")
 def main(plugin_paths: tuple[str, ...], output_format: str, strict: bool,
          qsys_version: str, ruleset: str, quiet: bool):
@@ -45,6 +46,8 @@ def main(plugin_paths: tuple[str, ...], output_format: str, strict: bool,
 
     for path in plugin_paths:
         result = validator.validate_file(path)
+        if ruleset.lower() != "full":
+            result.hide_info()
         results.append(result)
 
         if not result.valid:
