@@ -947,9 +947,8 @@ class PluginValidator:
         Core executes it). In design-time context, Controls is nil. Any runtime
         API call outside 'if Controls then' will crash Designer on load.
 
-        Two passes (D2, Fable review 2026-07-06 — previously ONE guard anywhere
-        in the file suppressed the ERROR even when the call executed outside
-        every guard):
+        Two passes (one guard anywhere in the file must not excuse a call that
+        executes outside every guard):
           1. Positional: a runtime API on a top-level line (outside every
              function body and every ``if Controls then`` block, and not after
              an early-return guard) executes at design time — line-anchored
@@ -996,7 +995,7 @@ class PluginValidator:
             return
 
         has_guard = (
-            bool(re.search(r'\bif\s+Controls\s+then\b', content))
+            bool(re.search(r'\bif\s+Controls\s*(?:~=\s*nil\s*)?(?:then|and)\b', content))
             or early_idx is not None
         )
         has_runtime_api = bool(re.search(
@@ -2297,7 +2296,9 @@ class PluginValidator:
             offsets.append(pos)
             pos += len(code) + 1
         kw_re = re.compile(r'\b(function|if|for|while|repeat|do|end|until)\b')
-        guard_re = re.compile(r'if\s+Controls\s+then\b')
+        # `if Controls then`, `if Controls ~= nil then`, and `if Controls and
+        # <cond> then` all keep their body off the design-time path.
+        guard_re = re.compile(r'if\s+Controls\s*(?:~=\s*nil\s*)?(?:then|and)\b')
 
         stack: list[dict] = []
         ranges: list[tuple[int, int]] = []

@@ -577,12 +577,28 @@ end
         result = v.validate_string(code)
         assert not any(i.code == "QPDK025" for i in result.issues)
 
+    @pytest.mark.parametrize("guard", [
+        "if Controls ~= nil then",
+        "if Controls and Controls.led then",
+        "if Controls ~= nil and Controls.led then",
+    ])
+    def test_alternate_guard_forms_ok(self, v, guard):
+        """B3: `~= nil` and `and ...` guards keep the body off the design-time path."""
+        code = _plugin("Alt Guard", guard + """
+  Controls.led.Boolean = true
+  local poll = Timer.New()
+end
+""", "alt-guard")
+        result = v.validate_string(code)
+        assert not any(i.code == "QPDK025" for i in result.issues), \
+            [(i.line, i.message) for i in result.issues if i.code == "QPDK025"]
+
     def test_guard_elsewhere_does_not_cover_toplevel_call(self, v):
         """A guard block somewhere must not excuse a top-level call outside it.
 
-        Regression (D2, Fable review 2026-07-06): the old check was two
-        file-level booleans — ONE `if Controls then` anywhere suppressed the
-        ERROR even when the runtime call executed outside every guard.
+        Regression: the old check was two file-level booleans, so ONE
+        `if Controls then` anywhere suppressed the ERROR even when the
+        runtime call executed outside every guard.
         """
         code = _plugin("Partial Guard", """\
 if Controls then
