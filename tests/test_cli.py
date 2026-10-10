@@ -309,3 +309,87 @@ class TestQpdkValidateStandalone:
         # standalone CLI always emits the multi-file envelope shape
         assert data["total"] == 1
         assert "results" in data
+
+
+# ---------------------------------------------------------------------------
+# Directory arguments get a usage error, not a traceback
+# ---------------------------------------------------------------------------
+
+class TestDirectoryArgumentRejected:
+    @pytest.mark.parametrize("command", ["validate", "design-check", "qsc-eval"])
+    def test_directory_is_a_usage_error(self, runner, tmp_path, command):
+        res = runner.invoke(qpdk_main, [command, str(tmp_path)])
+        assert res.exit_code == 2
+        assert "is a directory" in res.output
+        # click usage errors exit via SystemExit; anything else is a crash
+        assert res.exception is None or isinstance(res.exception, SystemExit)
+
+
+class TestRulesHelp:
+    def test_help_points_users_at_json(self, runner):
+        res = runner.invoke(qpdk_main, ["rules", "--help"])
+        assert res.exit_code == 0
+        assert "--format json" in res.output
+        assert "README" not in res.output
+
+
+# ---------------------------------------------------------------------------
+# Shipped examples: the good one passes every check, the bad ones are caught
+# ---------------------------------------------------------------------------
+
+from pathlib import Path  # noqa: E402
+import re  # noqa: E402
+
+_EXAMPLES = Path(__file__).parent.parent / "examples"
+_GOOD_EXAMPLE = _EXAMPLES / "good" / "simple-button.qplug"
+
+
+class TestShippedExamples:
+    def test_good_example_validates_strict(self, runner):
+        res = runner.invoke(qpdk_main, ["validate", str(_GOOD_EXAMPLE), "--strict"])
+        assert res.exit_code == 0, res.output
+
+    def test_good_example_design_check(self, runner):
+        res = runner.invoke(qpdk_main, ["design-check", str(_GOOD_EXAMPLE)])
+        assert res.exit_code == 0, res.output
+
+    def test_good_example_qsc_eval(self, runner):
+        res = runner.invoke(qpdk_main, ["qsc-eval", str(_GOOD_EXAMPLE), "-f", "json"])
+        assert res.exit_code == 0, res.output
+        result = json.loads(res.output)["results"][0]
+        assert result["errors"] == []
+        assert result["crash"] is None
+
+    def test_good_example_uses_no_status_global(self):
+        # Status/StatusState are not Q-SYS globals; the example must set its
+        # declared Status control instead.
+        src = _GOOD_EXAMPLE.read_text(encoding="utf-8")
+        assert not re.search(r'(?<![\w."\[])Status\s*[.:(]', src)
+        assert "StatusState" not in src
+
+    def test_good_example_runs_in_mock_runtime(self):
+        from qpdk.mock_runtime import QSYSRuntime
+
+        rt = QSYSRuntime()  # no properties seeded: the example must cope
+        rt.load_plugin(_GOOD_EXAMPLE)
+        rt.tick(1.0)
+        assert not rt.had_errors(), rt.error_messages
+        assert rt.controls["Status"].Value == 0
+        assert rt.controls["Status"].String == "OK"
+        rt.controls["Toggle"].simulate_external_write(1)
+        assert rt.controls["State"].Boolean is True
+
+    def test_good_example_runs_in_harness(self):
+        from qpdk.testing import PluginHarness
+
+        harness = PluginHarness(_GOOD_EXAMPLE, property_defaults={"Initial State": True})
+        rt = harness.make_runtime()
+        rt.tick(1.0)
+        assert not rt.had_errors(), rt.error_messages
+        assert rt.controls["State"].Boolean is True
+
+    @pytest.mark.parametrize("name", ["local-timer.qplug", "missing-plugininfo.qplug"])
+    def test_bad_examples_are_caught(self, runner, name):
+        res = runner.invoke(qpdk_main, ["validate", str(_EXAMPLES / "bad" / name), "--strict"])
+        assert res.exit_code in (1, 2)
+        assert "QPDK" in res.output

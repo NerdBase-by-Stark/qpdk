@@ -34,7 +34,15 @@ function GetControls(props)
     table.insert(ctls, {
         Name = "State",
         ControlType = "Indicator",
-        IndicatorType = "LED",
+        IndicatorType = "Led",
+        Count = 1,
+        UserPin = true,
+        PinStyle = "Output"
+    })
+    table.insert(ctls, {
+        Name = "Status",
+        ControlType = "Indicator",
+        IndicatorType = "Status",
         Count = 1,
         UserPin = true,
         PinStyle = "Output"
@@ -56,9 +64,16 @@ function GetControlLayout(props)
 
     layout["State"] = {
         PrettyName = "State LED",
-        Style = "LED",
+        Style = "Led",
         Position = {120, 10},
         Size = {32, 32}
+    }
+
+    layout["Status"] = {
+        PrettyName = "Status",
+        Style = "Text",
+        Position = {10, 52},
+        Size = {142, 32}
     }
 
     return layout, graphics
@@ -71,14 +86,17 @@ if Controls then
 
     -- Initialize
     local function Initialize()
-        Controls.Outputs["State"].Boolean = Properties["Initial State"].Value
-        Status.OK()
+        -- Guard the property read so a missing property cannot crash the callback.
+        local initial = Properties["Initial State"]
+        Controls["State"].Boolean = initial ~= nil and initial.Value == true
+        Controls["Status"].Value = 0      -- 0 = OK
+        Controls["Status"].String = "OK"
     end
 
     -- Toggle handler
-    Controls.Inputs["Toggle"].EventHandler = function(ctrl)
+    Controls["Toggle"].EventHandler = function(ctrl)
         local newState = ctrl.Boolean
-        Controls.Outputs["State"].Boolean = newState
+        Controls["State"].Boolean = newState
         Log.Message("Toggle changed to: " .. tostring(newState))
     end
 
