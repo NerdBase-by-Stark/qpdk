@@ -71,3 +71,5 @@ def test_needs_harness(rt):
         result = pytester.runpytest("-q", "-p", "no:cacheprovider")
         result.assert_outcomes(errors=1)
         result.stdout.fnmatch_lines(["*override the 'qsys_harness' fixture*"])
+        # Points at the README walkthrough, not at a source file.
+        result.stdout.fnmatch_lines(["*'Writing a test suite' in the QPDK README*"])

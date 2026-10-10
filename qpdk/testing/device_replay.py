@@ -1,8 +1,13 @@
-"""Device-session replay for plugin gauntlets.
+"""Replay a recorded device session against a plugin.
 
-Loads qsys-device-recording/1 fixtures (see device-recordings/README.md in the
-plugin repos) and answers a plugin's commands with what the REAL
-device said during capture. The plugin under test runs in QSYSRuntime and
+Loads qsys-device-recording/1 fixtures and answers a plugin's commands with
+what the real device said during capture. A fixture is a JSON file:
+
+    {"format": "qsys-device-recording/1",
+     "device": {...}, "captured": "...",
+     "exchanges": [{"type": "cmd", "tx": "command text", "rx": "reply text"}]}
+
+Exchanges of type "cmd" or "multiline" are used for replay. The plugin under test runs in QSYSRuntime and
 writes to a MockSsh / MockTcpSocket; the test loop calls ReplayDevice.pump()
 after ticking the virtual clock, and the replay injects recorded responses via
 simulate_data().
@@ -11,7 +16,7 @@ Matching model: command text (stripped) -> FIFO queue of recorded responses.
 The same command recorded N times yields its N responses in order; after the
 queue empties the LAST response repeats (steady-state polling reads the same
 device state unless the recording says otherwise). Unmatched commands raise in
-strict mode — a plugin talking to reality the fixture never saw is a coverage
+strict mode: a plugin talking to reality the fixture never saw is a coverage
 gap to record on the live device, not to invent here. Per-test synthetic
 responses belong in `overrides`, never in the fixture files.
 """
@@ -54,12 +59,12 @@ class ReplayDevice:
         recordings: fixture file paths and/or DeviceRecording objects.
             Later recordings' responses queue AFTER earlier ones for the
             same command.
-        overrides: {command_text: response_text} checked BEFORE recordings —
+        overrides: {command_text: response_text} checked BEFORE recordings;
             the place for test-specific synthetic responses.
         strict: raise UnrecordedCommandError on unmatched commands (default).
             When False, unmatched commands are recorded in self.unmatched and
-            silently unanswered (the plugin sees device silence — itself a
-            legitimate gauntlet scenario).
+            silently unanswered (the plugin sees device silence, which is
+            itself a useful test case).
         eol: line ending appended to injected responses when the recorded
             text does not end with a newline.
     """

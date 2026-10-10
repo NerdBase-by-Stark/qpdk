@@ -1,10 +1,8 @@
 """Array-control derivation and Lua-side proxies.
 
 The truth about which controls are arrays lives in the plugin's own
-GetControls Count fields — hand-maintained maps rot silently (a plugin's
-harness broke when a UI overhaul added arrays its conftest list did not
-know about). Derivation reads the plugin the way
-Designer does, so the map can never drift from the source.
+GetControls Count fields. Deriving the map by reading the plugin the way
+Designer does means it cannot drift from the source.
 """
 
 from qpdk.mock_runtime.runtime import QSYSRuntime
@@ -17,7 +15,7 @@ def derive_with_runtime(
     """Derive the array map AND the control schema from GetControls.
 
     Returns (arrays, runtime, schema): schema is a list of plain-dict rows
-    {Name, Count, PinStyle, ButtonType, UserPin} — the plugin's own GetControls
+    {Name, Count, PinStyle, ButtonType, UserPin}: the plugin's own GetControls
     truth, ready for QSYSRuntime.apply_control_schema (Both-handler mode).
 
     Callers that keep making runtimes afterwards (PluginHarness) must PIN the
@@ -54,7 +52,7 @@ def derive_with_runtime(
 def derive_array_controls(source: str) -> dict[str, int]:
     """Derive {control_name: count} for every Count>1 control in GetControls.
 
-    Strict: raises RuntimeError if design-time evaluation reports ANY error —
+    Strict: raises RuntimeError if design-time evaluation reports ANY error:
     a plugin that crashes at Designer drag-in has no trustworthy control
     table, and masking that here would hide a real defect.
     """
@@ -93,7 +91,7 @@ def inject_array_proxies(runtime: QSYSRuntime, arrays: dict[str, int]) -> None:
 
     MUST run BEFORE load_plugin: plugins legitimately index array controls
     in their main chunk, and post-load injection cannot rescue
-    a load that already crashed. Proxies are a testing concern — they stay
+    a load that already crashed. Proxies are a testing concern, so they stay
     here, not in the mock.
     """
     if not arrays:

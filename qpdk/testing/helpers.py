@@ -1,7 +1,6 @@
-"""Small helpers extracted from the proven suite conftests.
+"""Small helpers for plugin test suites.
 
-Only shapes with observed real-suite usage are included (spec §2.2):
-protocol drivers (login sequences, snapshot replies) are plugin-specific
+Protocol drivers (login sequences, snapshot replies) are plugin-specific
 and belong in each suite's own conftest.
 """
 

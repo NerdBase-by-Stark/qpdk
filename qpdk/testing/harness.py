@@ -1,11 +1,10 @@
-"""PluginHarness — one object that knows how to build correct runtimes.
+"""PluginHarness builds a fresh mock runtime with the plugin loaded.
 
-Construction order merges two field-used per-plugin conftest
-implementations and is regression-locked by tests/test_testing_harness.py:
+Construction order (locked by tests/test_testing_harness.py):
   1. QSYSRuntime() + _init_lua()
   2. seed properties (defaults, then per-call overrides)
   3. seed pre-load controls (bool -> .Boolean, str -> .String, else .Value)
-  4. inject array proxies (BEFORE load — see arrays.inject_array_proxies)
+  4. inject array proxies (before load; see arrays.inject_array_proxies)
   5. load_plugin
 """
 
@@ -18,6 +17,20 @@ from .arrays import derive_with_runtime, inject_array_proxies
 
 
 class PluginHarness:
+    """Builds test runtimes for one plugin.
+
+    Args:
+        plugin_path: the .qplug file to load.
+        property_defaults: property values every test starts from. A property
+            not listed here is missing in the mock.
+        control_seeds: control values set before the plugin loads.
+        readline: reserved; raises NotImplementedError in this release.
+        writes_fire_both_handlers: when True, PinStyle="Both" controls fire
+            their EventHandler on Lua writes. Default False.
+        strict_controls: when True (default), the plugin's lookup of a control
+            GetControls never declared returns nil, as on a Core.
+    """
+
     def __init__(
         self,
         plugin_path: str | Path,
@@ -33,12 +46,12 @@ class PluginHarness:
         self.readline = readline
         # Both-handler mode: arm PinStyle="Both" controls (from the plugin's
         # own GetControls, via the derivation run) to fire EventHandlers on
-        # Lua writes — probe-proven real-Core behavior. Echo-loop defects
+        # Lua writes, as observed on a Core. Echo-loop defects
         # (missing write guards) become testable. Default OFF.
         self.writes_fire_both_handlers = writes_fire_both_handlers
         # Plugin lookups of controls GetControls never declared return nil,
         # as on a Core. Default ON: a typo'd control name must fail here, not
-        # at load on hardware. Opt out only for legacy suites being migrated.
+        # at load on hardware. Opt out only while migrating an older suite.
         self.strict_controls = strict_controls
         self._source: str | None = None
         # Derivations keyed by the effective property configuration. Each
@@ -91,7 +104,7 @@ class PluginHarness:
             )
         # Derive arrays BEFORE building the runtime: the first derivation
         # constructs a design-time QSYSRuntime whose __init__ resets the
-        # GLOBAL timer scheduler — doing that mid-construction would strand
+        # GLOBAL timer scheduler, and doing that mid-construction would strand
         # the runtime under construction on a dead scheduler (its plugin's
         # timers would register on the new one and never fire via tick()).
         # The control set is derived for the EFFECTIVE configuration (harness

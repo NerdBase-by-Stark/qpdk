@@ -1,8 +1,8 @@
-"""qpdk.testing — pytest harness for Q-SYS plugin test suites.
+"""qpdk.testing: pytest harness for Q-SYS plugin test suites.
 
-Replaces the hand-rolled per-plugin conftest shims (array-control lists
-that rot, Properties/HttpClient repairs that upstream fixes made
-redundant) with one derived-from-the-plugin harness.
+`PluginHarness` builds the control set from the plugin's own GetControls,
+so tests do not need a hand-maintained list of controls or arrays. See
+"Writing a test suite" in the QPDK README.
 """
 
 from .arrays import derive_array_controls, inject_array_proxies

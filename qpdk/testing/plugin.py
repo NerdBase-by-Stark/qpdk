@@ -12,12 +12,11 @@ A suite opts in by overriding `qsys_harness` in its conftest:
     @pytest.fixture(scope="session")
     def qsys_harness():
         return PluginHarness("release/MyPlugin-v1.0.0.qplug",
-                             property_defaults={...},
-                             control_seeds={"core_logging": True})
+                             property_defaults={"Initial State": False})
 
-Known naming hazard: `rt` is a generic fixture name shipped from a global
-plugin. A project's own `rt` fixture wins by pytest override rules, so
-collisions degrade gracefully — but they shadow this one silently.
+Naming note: `rt` is a generic fixture name. If your project defines its own
+`rt` fixture, yours wins under pytest's override rules and this one is
+silently unused.
 """
 
 import pytest
@@ -42,9 +41,9 @@ def pytest_configure(config):
 def qsys_harness():
     """MUST be overridden by the plugin's own conftest."""
     pytest.fail(
-        "qpdk.testing: override the 'qsys_harness' fixture in your conftest "
-        "to return a PluginHarness for your plugin — see qpdk/testing/plugin.py "
-        "docstring for the three-line recipe."
+        "qpdk.testing: override the 'qsys_harness' fixture in your conftest.py "
+        "to return a PluginHarness for your plugin. See 'Writing a test suite' "
+        "in the QPDK README."
     )
 
 
