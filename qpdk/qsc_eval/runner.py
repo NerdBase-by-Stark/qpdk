@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -85,7 +86,7 @@ def run_qsc_eval(
         loader = L.eval(f'loadfile("{entry}")')
         loader(*args)
     except Exception as exc:  # Lua error inside plugin design-time code
-        result.crash = str(exc)
+        result.crash = _clean_crash(str(exc))
         return result
 
     if not captured:
@@ -100,6 +101,25 @@ def run_qsc_eval(
 
     _bash_layer_checks(doc, result, _load_exceptions(exceptions_path))
     return result
+
+
+# An error raised at a line of the vendored evaluator itself (not inside the
+# plugin's code). Lua shortens long chunk names with a leading "...", so match
+# on the file name only.
+_EVALUATOR_LOC = re.compile(r"\S*evaluateDesignTime\.lua:(\d+):\s*")
+_MISSING_GLOBAL = re.compile(r"attempt to call a nil value \(global '(\w+)'\)")
+
+
+def _clean_crash(msg: str) -> str:
+    """Rewrite evaluator-originated errors so they do not blame the plugin
+    or print an install path."""
+    first = _EVALUATOR_LOC.match(msg)
+    missing = _MISSING_GLOBAL.match(msg, first.end()) if first else None
+    if missing is not None:
+        return (f"the QSC evaluator requires a global {missing.group(1)}() "
+                "function; the plugin does not define one")
+    return _EVALUATOR_LOC.sub(
+        lambda m: f"QSC evaluator (evaluateDesignTime.lua:{m.group(1)}): ", msg)
 
 
 def _bash_layer_checks(doc: dict, result: QscEvalResult, exceptions: dict) -> None:
