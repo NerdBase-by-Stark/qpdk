@@ -410,6 +410,10 @@ class QSYSRuntime:
                 return self._lua.table(*ctrl.choices)
             elif key == "Index":
                 return ctrl.index
+            elif key == "IsIndeterminate":
+                return ctrl.is_indeterminate
+            elif key == "CssClass":
+                return ctrl.css_class
             elif key == "EventHandler":
                 return ctrl._event_handlers[0] if ctrl._event_handlers else None
             elif key == "Trigger":
@@ -437,6 +441,13 @@ class QSYSRuntime:
                 ctrl.Legend = value
             elif key == "Color":
                 ctrl.Color = value
+            # Metadata aspects (Control_Aspects_Metadata.htm).
+            elif key == "Choices":
+                ctrl.Choices = list(value.values()) if hasattr(value, "values") else list(value)
+            elif key == "IsIndeterminate":
+                ctrl.IsIndeterminate = value
+            elif key == "CssClass":
+                ctrl.css_class = str(value)
             elif key == "EventHandler":
                 ctrl.EventHandler = value
 
@@ -735,7 +746,7 @@ class QSYSRuntime:
                 return ssh_obj.Timeout
             elif key == "LoginFailed":
                 return ssh_obj.LoginFailed
-            elif key in ("ReadTimeout", "WriteTimeout", "ReconnectTimeout"):
+            elif key in ("ReadTimeout", "WriteTimeout", "ReconnectTimeout", "IsInteractive"):
                 return getattr(ssh_obj, key)
             return None
 
@@ -784,7 +795,7 @@ class QSYSRuntime:
             # falling through here silently dropped cisco's
             # ReadTimeout/WriteTimeout/ReconnectTimeout assignments — the
             # cleanest false-green in the coverage audit. Mirrors TcpSocket.
-            elif key in ("ReadTimeout", "WriteTimeout", "ReconnectTimeout"):
+            elif key in ("ReadTimeout", "WriteTimeout", "ReconnectTimeout", "IsInteractive"):
                 setattr(ssh_obj, key, value)
 
         # Retain strong Python references to all closures so CPython's cyclic GC

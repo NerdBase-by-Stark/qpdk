@@ -16,8 +16,8 @@ class MockSsh:
     Properties: IsConnected, BufferLength
     Methods: Connect(host, port, user, pass), Disconnect(), Write(data), Read(n)
     Event callbacks (assigned by plugin, called by test harness):
-        Connected, Reconnect, Closed, Error, Timeout, LoginFailed (mandatory),
-        Data (recommended)
+        Connected, Reconnect, Data, Closed, Error, Timeout, LoginFailed
+        (Ssh.htm lists all seven; none is documented as mandatory)
 
     Usage (from plugin Lua code):
         local ssh = Ssh.New()
@@ -33,10 +33,12 @@ class MockSsh:
     def __init__(self):
         self.IsConnected = False
         self.BufferLength = 0
-        # 6 mandatory + 1 recommended lifecycle callbacks -- assigned by plugin, called by test harness
+        # Ssh.htm .IsInteractive: set true when the device needs interactive mode.
+        self.IsInteractive = False
+        # Seven event callbacks (Ssh.htm), assigned by plugin, called by test harness
         self.Connected = None
         self.Reconnect = None
-        self.Data = None       # recommended, fires when data arrives (optional if using Read() polling)
+        self.Data = None       # fires when data arrives (optional if using Read() polling)
         self.Closed = None
         self.Error = None
         self.Timeout = None

@@ -32,6 +32,7 @@ class MockControl:
     is_indeterminate: bool = False
     legend: str = ""
     color: str = ""
+    css_class: str = ""
     choices: list[str] = field(default_factory=list)
 
     # Optional min/max clamping (MR-P2-B)

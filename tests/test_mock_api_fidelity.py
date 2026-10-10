@@ -260,3 +260,26 @@ def test_tcp_socket_search(runtime):
     assert lg.B == 9
     assert lg.C is None
     assert lg.L == 10  # Search does not consume the buffer
+
+
+# --- Control_Aspects_Metadata.htm / Ssh.htm property writes ---------------
+
+def test_metadata_aspect_writes_persist(runtime):
+    runtime.load_string(
+        "Controls.x.Choices = {'a', 'b'}\n"
+        "Controls.x.IsIndeterminate = true\n"
+        "Controls.x.CssClass = 'warn'\n"
+        "N = #Controls.x.Choices\n"
+        "I = Controls.x.IsIndeterminate\n"
+        "C = Controls.x.CssClass\n"
+    )
+    lg = g(runtime)
+    assert lg.N == 2
+    assert lg.I is True
+    assert lg.C == "warn"
+    assert runtime.controls["x"].choices == ["a", "b"]
+
+
+def test_ssh_is_interactive_persists(runtime):
+    runtime.load_string("s = Ssh.New()\ns.IsInteractive = true\nV = s.IsInteractive")
+    assert g(runtime).V is True
