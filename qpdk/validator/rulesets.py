@@ -97,9 +97,9 @@ RULE_METADATA: dict[str, dict] = {
     #      per-command version provenance, so any "deprecated/added in vX"
     #      assertion would be invented.
     #   3. IndicatorType / ControlType / ButtonType ENUM-validation. Casing such
-    #      as `Led` vs `LED` is unverified (the gold example uses
-    #      IndicatorType="LED"), so an enum-membership rule would flag the
-    #      bundled showcase. (QPDK011 deliberately matches ButtonType="Trigger"
+    #      as `Led` vs `LED` is unverified in Designer (QSC's evaluator accepts
+    #      only `Led`, while field-working plugins ship `LED`), so an
+    #      enum-membership rule would flag working plugins. (QPDK011 deliberately matches ButtonType="Trigger"
     #      EXACTLY rather than validating the whole enum.)
     "QPDK039": {"severity": IssueSeverity.ERROR,   "phase": 1, "category": "build",      "description": "Unsubstituted build-template placeholder"},
 

@@ -1,7 +1,7 @@
 -- Fixture: reserved_name_shadow.qplug
--- Tests QPDK024: local function named "log" shadows the Q-SYS Log global.
--- Any subsequent call to log() in that scope hits the local function,
--- while Log.Message() still works — but the intent is unclear and bugs arise.
+-- Tests QPDK024 is case-sensitive: a local function named "log" does NOT
+-- shadow the Q-SYS Log global (Lua names are case-sensitive), so this
+-- fixture must produce no QPDK024 finding.
 
 PluginInfo = { Name = "Test~Reserved Shadow", Version = "1.0.0", Id = "test.reserved-shadow" }
 

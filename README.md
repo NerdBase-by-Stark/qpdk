@@ -220,15 +220,28 @@ qpdk qrc --playback session.json          # replay recorded responses
 ```
 
 Supports Logon, NoOp, StatusGet/EngineStatus, Control.Get/Set,
-Component.Get/Set, ChangeGroup.* and Snapshot.Load. It is a simple stand-in,
+Component.Get/Set, ChangeGroup.*, Snapshot.Load and Snapshot.Save. It is a simple stand-in,
 not a full Core: a client that works against it can still fail against real
 hardware.
 
 ## Limitations
 
 - No visual preview of the plugin UI.
-- HttpClient, Component and NamedControl are stubs; Ssh, TcpSocket, Timer and
-  json have behavioural mocks.
+- Component, NamedControl and HttpClient are stubs. Component has `New`,
+  `GetComponents` and `GetControls`, and the last two return empty tables.
+  NamedControl has `GetValue`, `SetValue`, `GetString`, `SetString`,
+  `GetPosition`, `SetPosition` and `Trigger`, and creates an unknown name
+  instead of raising an error as a Core does. Ssh, TcpSocket, Timer and json
+  have behavioural mocks.
+- `Timer.Now()` returns virtual seconds starting at 0, not seconds since the
+  epoch, so do not compare it with `os.time()` or pass it to `os.date()`.
+- `Timer:Start(0)` schedules nothing, and `IsRunning()` stays false.
+- `Control:Trigger()` called from Lua does nothing in the mock. Use
+  `simulate_trigger()` to simulate a press.
+- TcpSocket has no single `EventHandler` and no `TcpSocket.Events`, and
+  `ReconnectTimeout` defaults to 0 instead of the documented 5 seconds.
+- The QRC mock does not require Logon, and it closes an idle connection after
+  65 seconds.
 - The mock does not enforce Core CPU limits.
 - Design-time mode removes only `Controls`, the difference confirmed on
   hardware. Other globals at design time are not verified.
@@ -246,7 +259,12 @@ Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## Licence
 
-Apache License 2.0, see `LICENSE`. QSC's Plugin-Evaluation-Script, included
-under `qpdk/qsc_eval/vendor/`, keeps its own MIT licence.
+Licensed under either of the [MIT License](LICENSE-MIT) or the
+[Apache License 2.0](LICENSE-APACHE), at your option. QSC's
+Plugin-Evaluation-Script, included under `qpdk/qsc_eval/vendor/`, keeps its own
+MIT licence.
+
+Unless you say otherwise, any contribution you submit for inclusion in QPDK is
+dual licensed as above, without any additional terms or conditions.
 
 QPDK is an independent project. It is not made, endorsed or supported by QSC.

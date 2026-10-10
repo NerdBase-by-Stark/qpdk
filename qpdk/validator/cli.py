@@ -11,7 +11,7 @@ console = Console()
 
 
 @click.command()
-@click.argument("plugin_paths", nargs=-1, type=click.Path(exists=True))
+@click.argument("plugin_paths", nargs=-1, type=click.Path(exists=True, dir_okay=False))
 @click.option("--format", "-f", "output_format",
               type=click.Choice(["text", "json", "tap"]),
               default="text",

@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qpdk"
-version = "0.15.0"
+version = "0.16.0"
 description = "Q-SYS Plugin Development Kit - Headless testing and validation for Q-SYS plugins"
 readme = "README.md"
-license = "Apache-2.0"
-license-files = ["LICENSE", "NOTICE"]
+license = "MIT OR Apache-2.0"
+license-files = ["LICENSE-MIT", "LICENSE-APACHE", "NOTICE"]
 requires-python = ">=3.10"
 authors = [
     {name = "Jason Stark", email = "jason@stark-records.com"}

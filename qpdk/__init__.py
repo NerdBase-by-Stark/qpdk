@@ -11,7 +11,7 @@ Components:
 - qsc_eval: QSC's official Plugin-Evaluation-Script, run in Lua 5.3
 """
 
-__version__ = "0.15.0"
+__version__ = "0.16.0"
 
 from .validator import PluginValidator, ValidationResult
 from .qrc_tester import QRCMockServer
