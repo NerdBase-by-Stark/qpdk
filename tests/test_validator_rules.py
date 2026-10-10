@@ -2181,6 +2181,45 @@ class TestHarvestGlobalDefs:
         assert "ghost" not in got and "phantom" not in got
 
 
+class TestW113AssignedGlobal:
+    """LUACHECK-W113 (read of an undefined global) is INFO when the plugin
+    assigns that name as a global somewhere (a W111 site, the cross-section
+    global idiom), and stays a WARNING when the name is never assigned."""
+
+    pytestmark = pytest.mark.skipif(
+        __import__("shutil").which("luacheck") is None, reason="luacheck not installed")
+
+    _SRC = """\
+PluginInfo = { Name = "Test~W113", Version = "1.0.0", Id = "test.w113" }
+function GetProperties() return {} end
+function GetControls() return {} end
+function GetControlLayout() return {}, {} end
+if Controls then
+  if true then
+    sharedState = 1
+  end
+  print(sharedState)
+  print(sharedStat)
+end
+"""
+
+    def _w113(self, tmp_path):
+        f = tmp_path / "w113.qplug"
+        f.write_text(self._SRC)
+        r = PluginValidator().validate_file(f)
+        return {i.line: i for i in r.issues if i.code == "LUACHECK-W113"}
+
+    def test_read_of_assigned_global_is_info(self, tmp_path):
+        hits = self._w113(tmp_path)
+        assert hits[9].severity == IssueSeverity.INFO
+        assert "sharedState" in hits[9].message
+
+    def test_read_of_never_assigned_global_warns(self, tmp_path):
+        hits = self._w113(tmp_path)
+        assert hits[10].severity == IssueSeverity.WARNING
+        assert "sharedStat'" in hits[10].message
+
+
 class TestQPDK012DesignTimeRuntimeGlobal:
     """QPDK012: a runtime-only global indexed inside a design-time definition
     function (GetControls/GetControlLayout/...) crashes Designer at design time

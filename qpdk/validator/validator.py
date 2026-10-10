@@ -2415,7 +2415,6 @@ class PluginValidator:
             # version AVAILABILITY is QPDK009's concern. The legacy V7 list is an
             # incomplete subset, so using it here produced spurious W113
             # "undefined global" for APIs that predate v9 (json, Crypto, ...).
-            # See internal notes
             # --globals takes space-separated names as varargs, not comma-separated
             base_globals = QSYS_GLOBALS_V9
             globals_list = list(base_globals.keys())
@@ -2475,38 +2474,54 @@ class PluginValidator:
                 return
 
             # Parse luacheck output
+            parsed = []
             for line in proc.stdout.strip().split("\n"):
                 if not line or line.startswith("Checking"):
                     continue
-
                 # Format: path:line:col: (Wxxx) message
                 match = re.match(r"[^:]+:(\d+):(\d+):\s+\(([EW]\d+)\)\s+(.+)", line)
                 if match:
-                    line_num = int(match.group(1))
-                    col = int(match.group(2))
-                    code = match.group(3)
-                    message = match.group(4)
+                    parsed.append((int(match.group(1)), int(match.group(2)),
+                                   match.group(3), match.group(4)))
 
-                    if code.startswith("E"):
-                        result.add_error(f"LUACHECK-{code}", message,
-                                        line=line_num, column=col, source="luacheck")
-                    elif code in ("W111", "W112"):
-                        # Setting/mutating a non-standard global. In the single-file
-                        # .qplug format, authors legitimately declare top-level
-                        # globals to bridge design-time and runtime sections; the
-                        # def-harvest (_harvest_global_defs) suppresses the ones it
-                        # can see, but globals defined inside guarded scopes leak
-                        # through. This is a style choice, not a defect, so it is
-                        # INFO — not WARNING (vendor corpus: ~1,889 of these across
-                        # 19 real plugins swamped genuine warnings). W113
-                        # (accessing an UNDEFINED global) stays a WARNING because it
-                        # can be a real typo/use-before-def bug.
-                        result.add_info(f"LUACHECK-{code}", message,
-                                        line=line_num, column=col, source="luacheck")
+            # Names the plugin assigns as globals somewhere (W111 sites).
+            # A W113 read of one of these is the single-file .qplug idiom of
+            # a global shared across sections, not a typo, so it is INFO.
+            # A W113 read of a name assigned NOWHERE stays a WARNING: that is
+            # the likely-typo case the check exists for.
+            assigned = {
+                m.group(1) for _l, _c, code, message in parsed if code == "W111"
+                for m in [re.search(r"'([^']+)'", message)] if m
+            }
+
+            for line_num, col, code, message in parsed:
+                if code.startswith("E"):
+                    result.add_error(f"LUACHECK-{code}", message,
+                                     line=line_num, column=col, source="luacheck")
+                elif code in ("W111", "W112"):
+                    # Setting/mutating a non-standard global. In the single-file
+                    # .qplug format, authors legitimately declare top-level
+                    # globals to bridge design-time and runtime sections; the
+                    # def-harvest (_harvest_global_defs) suppresses the ones it
+                    # can see, but globals defined inside guarded scopes leak
+                    # through. This is a style choice, not a defect, so it is
+                    # INFO, not WARNING (vendor corpus: ~1,889 of these across
+                    # 19 real plugins swamped genuine warnings).
+                    result.add_info(f"LUACHECK-{code}", message,
+                                    line=line_num, column=col, source="luacheck")
+                elif code == "W113":
+                    m = re.search(r"'([^']+)'", message)
+                    if m and m.group(1) in assigned:
+                        result.add_info(
+                            f"LUACHECK-{code}",
+                            message + " (assigned as a global elsewhere in this plugin)",
+                            line=line_num, column=col, source="luacheck")
                     else:
                         result.add_warning(f"LUACHECK-{code}", message,
-                                          line=line_num, column=col, source="luacheck")
-
+                                           line=line_num, column=col, source="luacheck")
+                else:
+                    result.add_warning(f"LUACHECK-{code}", message,
+                                       line=line_num, column=col, source="luacheck")
 
         except FileNotFoundError:
             result.add_info("QPDK000", "luacheck not found, skipping static analysis")
