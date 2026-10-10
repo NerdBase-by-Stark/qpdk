@@ -68,6 +68,7 @@ behaviour that tests may rely on; they are marked **Changed**.
 
 ### Packaging, docs and examples
 
+- New AGENTS.md: a one-page guide for coding agents adding QPDK to CI.
 - pytest is now installed with QPDK, so `qpdk test` and the test harness
   work straight after install.
 - The good example (`examples/good/simple-button.qplug`) now passes

@@ -10,6 +10,8 @@ works just as well on plugins written by hand.
 QPDK is alpha software (0.x): rules, severities and mock behaviour may change
 between minor versions.
 
+Coding agents: read [AGENTS.md](AGENTS.md) first.
+
 ## What it checks, and what it doesn't
 
 QPDK makes sure what you deploy is **functional**: it loads in Designer, its
