@@ -4,10 +4,10 @@ Ruleset definitions for QPDK validator.
 Defines which rules run under each ruleset (P0, default, full) and
 manages the phased severity level configuration for gradual rollout.
 
-Migration strategy from source document:
-  Phase 1 (immediate): Crash-causing rules as ERROR
-  Phase 2 (sprint 2):  Quality rules as WARNING
-  Phase 3 (sprint 3+): Advisory rules as INFO -> WARNING
+Phases:
+  Phase 1: crash-causing rules (all rulesets)
+  Phase 2: quality rules (default and full)
+  Phase 3: advisory rules (full only)
 
 Rulesets:
   P0:      Only crash-preventing rules (ship-blocking)
@@ -19,12 +19,18 @@ from .result import IssueSeverity
 
 # --- Rule metadata ---
 # Maps each rule code to its category, default severity, and phase.
-# "phase" controls when the rule is promoted:
-#   1 = immediate (ERROR from day one)
-#   2 = sprint 2 (starts as WARNING)
-#   3 = sprint 3+ (starts as INFO, promotes to WARNING)
+# "phase" controls which rulesets include the rule:
+#   1 = P0, default and full
+#   2 = default and full
+#   3 = full only
 
 RULE_METADATA: dict[str, dict] = {
+    # --- Internal (always active) ---
+    # QPDK000 reports that analysis did not complete: a rule crashed, or
+    # luacheck failed or timed out (ERROR, so the plugin is not VALID). The
+    # "tool not installed" notices use the same code at INFO.
+    "QPDK000": {"severity": IssueSeverity.ERROR,   "phase": 1, "category": "internal",   "description": "Validator could not complete a check (rule crash, luacheck failure); a missing optional tool is INFO"},
+
     # --- Structural / Syntax (always active) ---
     "QPDK001": {"severity": IssueSeverity.ERROR,   "phase": 1, "category": "syntax",    "description": "Lua syntax error"},
     "QPDK002": {"severity": IssueSeverity.ERROR,   "phase": 1, "category": "structure",  "description": "Missing PluginInfo table"},
@@ -44,16 +50,14 @@ RULE_METADATA: dict[str, dict] = {
     "QPDK005": {"severity": IssueSeverity.WARNING, "phase": 1, "category": "scoping",    "description": "Library object GC risk (local scope)"},
     "QPDK020": {"severity": IssueSeverity.ERROR,   "phase": 1, "category": "api",        "description": "Call to a non-existent Q-SYS API function (Log.Warning/Log.Debug, Timer.Create)"},
     # Inverse of QPDK025: a runtime-only global (Controls/Component/Timer/...)
-    # indexed INSIDE a design-time GetX body. ERROR for Controls (reproduced
-    # Designer crash, cisco ce220a6; nil-at-design-time is the same KB-grounded
-    # mechanism QPDK025 asserts); WARNING for the other runtime objects (emit
+    # indexed INSIDE a design-time GetX body. ERROR for Controls (a reproduced
+    # Designer crash; Controls is nil at design time, the same mechanism
+    # QPDK025 asserts); WARNING for the other runtime objects (emit
     # softer than the ERROR metadata, which the severity-SSOT test allows).
     "QPDK012": {"severity": IssueSeverity.ERROR,   "phase": 1, "category": "guard",      "description": "Runtime-only global indexed in a design-time function body"},
     "QPDK025": {"severity": IssueSeverity.ERROR,   "phase": 1, "category": "guard",      "description": "Missing runtime guard"},
 
     # --- P1 quality rules ---
-    "QPDK006": {"severity": IssueSeverity.WARNING, "phase": 2, "category": "reserved",   "description": "Reserved — was undefined global duplicate of luacheck W1xx"},
-    "QPDK007": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "reserved",   "description": "Reserved — was unused variable duplicate of luacheck W211/W311"},
     "QPDK008": {"severity": IssueSeverity.WARNING, "phase": 2, "category": "structure",  "description": "Duplicate plugin ID"},
     "QPDK009": {"severity": IssueSeverity.WARNING, "phase": 2, "category": "api",        "description": "Version-specific API usage"},
     "QPDK021": {"severity": IssueSeverity.WARNING, "phase": 2, "category": "api",        "description": "rapidjson without require()"},
@@ -77,13 +81,11 @@ RULE_METADATA: dict[str, dict] = {
     "QPDK036": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "framework",  "description": "Dual-context write to indicator"},
     "QPDK037": {"severity": IssueSeverity.WARNING, "phase": 3, "category": "framework",  "description": "Missing monitor mode guard"},
     # QPDK038 (Reflect/StatusGP "clamps Value 4") intentionally NOT shipped:
-    # the Value-4->3 clamp claim is unverified and contradicted by internal notes
-    # (the pattern is documented as legitimate and still ships in production).
-    # Re-introduce only once confirmed on real hardware. See internal notes
+    # the Value-4->3 clamp claim is unverified, and the pattern ships in
+    # field-deployed plugins. Re-introduce only once confirmed on real hardware.
     #
-    # DO-NOT-BUILD non-goals (recorded here so a future agent does not repeat
-    # the QPDK038 fabrication pattern — the KB cannot ground any of these; see
-    # internal notes "Non-goals"):
+    # DO-NOT-BUILD non-goals (recorded here so nobody repeats the QPDK038
+    # pattern of an ungrounded rule; the Q-SYS docs cannot ground any of these):
     #   1. xAPI command-EXISTENCE / known-command allowlist. The catalog is
     #      doc-parse noise and version-merged across RoomOS releases — a
     #      "this xCommand does not exist" rule would false-flag valid commands.
@@ -101,16 +103,15 @@ RULE_METADATA: dict[str, dict] = {
     # GetControlLayout — runs in the design-time path (qpdk design-check /
     # qpdk.validator.ui_lint), NOT inside the static PluginValidator, because
     # positions only exist after executing the layout function. Thresholds
-    # are corpus-mined; provenance + DO-NOT-BUILD register:
-    # internal notes Part 1. Severity ceiling
+    # are mined from a corpus of shipped plugins. Severity ceiling
     # WARNING: no geometry defect in this family breaks plugin load.
-    "QPDK040": {"severity": IssueSeverity.WARNING, "phase": 2, "category": "ui-geometry", "description": "Controls overlap on the same page (zero overlaps ship in the corpus)"},
-    "QPDK041": {"severity": IssueSeverity.WARNING, "phase": 2, "category": "ui-geometry", "description": "Zero or negative control/graphic dimension"},
-    "QPDK042": {"severity": IssueSeverity.WARNING, "phase": 2, "category": "ui-geometry", "description": "Control extends >6px past the page background span (Header/GroupBox proxy)"},
-    "QPDK043": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "ui-geometry", "description": "Control rect straddles an origin axis (partially off-canvas)"},
-    "QPDK044": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "ui-geometry", "description": "Non-integral Position/Size component (un-floored arithmetic)"},
-    "QPDK045": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "ui-typo",     "description": "Style string outside the corpus-verified vocabulary (possible typo)"},
-    "QPDK046": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "ui-geometry", "description": "Control dimension below the smallest shipped on-canvas control (14px)"},
+    "QPDK040": {"severity": IssueSeverity.WARNING, "phase": 2, "category": "ui-geometry", "description": "design-check only: Controls overlap on the same page (zero overlaps ship in the corpus)"},
+    "QPDK041": {"severity": IssueSeverity.WARNING, "phase": 2, "category": "ui-geometry", "description": "design-check only: Zero or negative control/graphic dimension"},
+    "QPDK042": {"severity": IssueSeverity.WARNING, "phase": 2, "category": "ui-geometry", "description": "design-check only: Control extends >6px past the page background span (Header/GroupBox proxy)"},
+    "QPDK043": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "ui-geometry", "description": "design-check only: Control rect straddles an origin axis (partially off-canvas)"},
+    "QPDK044": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "ui-geometry", "description": "design-check only: Non-integral Position/Size component (un-floored arithmetic)"},
+    "QPDK045": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "ui-typo",     "description": "design-check only: Style string outside the corpus-verified vocabulary (possible typo)"},
+    "QPDK046": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "ui-geometry", "description": "design-check only: Control dimension below the smallest shipped on-canvas control (14px)"},
     # QPDK047 — advisory only (phase 3 / full ruleset). PluginInfo.Manufacturer is
     # a managed-submission convention QSC's own evaluator warns on; the vendor
     # corpus shows 0/19 real plugins set it, so INFO (not WARNING) is the honest
@@ -127,6 +128,20 @@ RULE_METADATA: dict[str, dict] = {
     "QPDK049": {"severity": IssueSeverity.ERROR,   "phase": 1, "category": "api",        "description": "Controls reference to a name GetControls does not declare (nil on a Core)"},
     "QPDK050": {"severity": IssueSeverity.ERROR,   "phase": 1, "category": "api",        "description": "Count=1 control used as an array (#, [i] or ipairs): ERROR if single in every configuration, WARNING if a property can make it an array"},
 }
+
+
+# Retired codes: never emitted and never reused. Kept out of RULE_METADATA so
+# `qpdk rules` lists only live rules.
+RETIRED_RULES: dict[str, str] = {
+    "QPDK006": "undefined global; luacheck W111/W112/W113 own this check",
+    "QPDK007": "unused variable; luacheck W211/W311 own this check",
+}
+
+# Rules that run under `qpdk design-check` (the evaluated layout), not under
+# `qpdk validate`. Their descriptions start with "design-check only:".
+DESIGN_CHECK_RULES: frozenset[str] = frozenset(
+    code for code, meta in RULE_METADATA.items() if meta["category"].startswith("ui-")
+)
 
 
 # --- Ruleset definitions ---

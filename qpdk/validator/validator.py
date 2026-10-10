@@ -28,8 +28,8 @@ class PluginValidator:
     MISSING_FIELD = "QPDK003"
     INVALID_FIELD = "QPDK004"
     TIMER_SCOPING = "QPDK005"
-    UNDEFINED_GLOBAL = "QPDK006"  # reserved — luacheck W1xx
-    UNUSED_VARIABLE = "QPDK007"  # reserved — luacheck W211/W311
+    # QPDK006/QPDK007 are retired (luacheck W1xx / W211/W311 own those checks);
+    # see RETIRED_RULES in rulesets.py. The codes are never reused.
     DUPLICATE_PLUGIN_ID = "QPDK008"
     VERSION_API = "QPDK009"
     CONTROL_NAMING = "QPDK010"

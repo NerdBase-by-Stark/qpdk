@@ -526,3 +526,29 @@ class TestQPDK013DynamicLayoutKeys:
         result = validator.validate_string(code)
         assert any(i.code == "QPDK013" and i.severity == IssueSeverity.INFO
                    and "trigger_in" in i.message for i in result.issues)
+
+
+class TestRuleCatalogue:
+    """B10/A-6: the catalogue lists only live rules, includes QPDK000, and
+    marks the rules that run under design-check rather than validate."""
+
+    def test_retired_codes_not_in_catalogue(self):
+        from qpdk.validator.rulesets import RETIRED_RULES, RULE_METADATA
+        assert {"QPDK006", "QPDK007"} <= set(RETIRED_RULES)
+        assert not set(RETIRED_RULES) & set(RULE_METADATA)
+
+    def test_qpdk000_catalogued_as_error(self):
+        from qpdk.validator.rulesets import RULE_METADATA
+        assert RULE_METADATA["QPDK000"]["severity"] == IssueSeverity.ERROR
+
+    def test_design_check_rules_labelled(self):
+        from qpdk.validator.rulesets import DESIGN_CHECK_RULES, RULE_METADATA
+        assert DESIGN_CHECK_RULES == {f"QPDK04{i}" for i in range(7)}
+        for code, meta in RULE_METADATA.items():
+            labelled = meta["description"].startswith("design-check only:")
+            assert labelled == (code in DESIGN_CHECK_RULES), code
+
+    def test_live_rule_count(self):
+        from qpdk.validator.rulesets import DESIGN_CHECK_RULES, RULE_METADATA
+        assert len(RULE_METADATA) == 41
+        assert len(RULE_METADATA) - len(DESIGN_CHECK_RULES) == 34
