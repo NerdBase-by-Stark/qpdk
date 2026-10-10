@@ -7,17 +7,18 @@ A TCP server that emulates a Q-SYS Core for integration testing.
 import asyncio
 import json
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from .protocol import (
-    QRCRequest,
-    QRCResponse,
-    QRCControl,
     QRCChangeGroup,
+    QRCControl,
     QRCError,
     QRCErrorCode,
+    QRCRequest,
+    QRCResponse,
 )
 
 

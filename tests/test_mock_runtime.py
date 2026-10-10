@@ -1,9 +1,8 @@
 """Tests for Mock Q-SYS Runtime"""
 
-import pytest
 
 from qpdk.mock_runtime.controls import MockControl, MockControls
-from qpdk.mock_runtime.timer import TimerScheduler, TimerAPI, MockTimer
+from qpdk.mock_runtime.timer import MockTimer, TimerAPI, TimerScheduler
 
 
 class TestMockControl:

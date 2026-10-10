@@ -16,7 +16,6 @@ for back-compat only.
 
 from qpdk.mock_runtime.runtime import QSYSRuntime
 
-
 _HEADER = (
     'PluginInfo = { Name = "H~Test", Version = "1.0.0", Id = "com.h.test" }\n'
     "function GetProperties() return {} end\n"

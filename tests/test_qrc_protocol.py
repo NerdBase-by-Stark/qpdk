@@ -1,14 +1,12 @@
 """Tests for QRC Protocol"""
 
-import pytest
 import json
 
 from qpdk.qrc_tester.protocol import (
-    QRCRequest,
-    QRCResponse,
-    QRCError,
     QRCControl,
     QRCErrorCode,
+    QRCRequest,
+    QRCResponse,
 )
 
 

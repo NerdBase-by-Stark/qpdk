@@ -15,7 +15,6 @@ the definition functions, collecting errors instead of raising.
 
 from qpdk.mock_runtime.runtime import QSYSRuntime
 
-
 _HEADER = (
     'PluginInfo = { Name = "DT~Test", Version = "1.0.0", Id = "com.dt.test" }\n'
 )

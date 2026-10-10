@@ -1,9 +1,10 @@
 """Tests for Plugin Validator"""
 
-import pytest
 from pathlib import Path
 
-from qpdk.validator import PluginValidator, ValidationResult, IssueSeverity
+import pytest
+
+from qpdk.validator import IssueSeverity, PluginValidator, ValidationResult
 
 
 @pytest.fixture
@@ -398,6 +399,7 @@ class TestSeveritySingleSourceOfTruth:
 
     def test_emitted_severity_not_hotter_than_metadata(self):
         import glob
+
         from qpdk.validator.rulesets import get_rule_severity
 
         order = {IssueSeverity.INFO: 0, IssueSeverity.WARNING: 1, IssueSeverity.ERROR: 2}
@@ -542,7 +544,7 @@ class TestRuleCatalogue:
 
     def test_design_check_rules_labelled(self):
         from qpdk.validator.rulesets import DESIGN_CHECK_RULES, RULE_METADATA
-        assert DESIGN_CHECK_RULES == {f"QPDK04{i}" for i in range(7)}
+        assert {f"QPDK04{i}" for i in range(7)} == DESIGN_CHECK_RULES
         for code, meta in RULE_METADATA.items():
             labelled = meta["description"].startswith("design-check only:")
             assert labelled == (code in DESIGN_CHECK_RULES), code

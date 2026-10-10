@@ -18,8 +18,8 @@ implementing the fix is the only change needed to verify the fix.
 import pytest
 
 from qpdk.mock_runtime.controls import MockControl, MockControls
-from qpdk.mock_runtime.timer import TimerAPI, TimerScheduler, MockTimer
 from qpdk.mock_runtime.runtime import QSYSRuntime
+from qpdk.mock_runtime.timer import MockTimer, TimerAPI, TimerScheduler
 
 
 @pytest.fixture

@@ -14,12 +14,13 @@ Bug reference:
   P0-F  Controls flat access (Controls.name) missing from mock
 """
 
+from pathlib import Path
+
 import pytest
 
-from qpdk.validator import PluginValidator, ValidationResult, IssueSeverity
 from qpdk.mock_runtime.controls import MockControl, MockControls
 from qpdk.mock_runtime.runtime import QSYSRuntime
-from pathlib import Path
+from qpdk.validator import PluginValidator
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

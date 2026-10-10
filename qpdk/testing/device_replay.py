@@ -39,7 +39,7 @@ class DeviceRecording:
         self.exchanges: list[dict[str, Any]] = data.get("exchanges", [])
 
     @classmethod
-    def load(cls, path: str | Path) -> "DeviceRecording":
+    def load(cls, path: str | Path) -> DeviceRecording:
         p = Path(path)
         return cls(json.loads(p.read_text(encoding="utf-8")), p)
 

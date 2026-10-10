@@ -18,10 +18,11 @@ Rule reference:
   QPDK028      SSH object missing mandatory event handlers
 """
 
-import pytest
 from pathlib import Path
 
-from qpdk.validator import PluginValidator, ValidationResult, IssueSeverity
+import pytest
+
+from qpdk.validator import IssueSeverity, PluginValidator
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

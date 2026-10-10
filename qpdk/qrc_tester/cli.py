@@ -81,7 +81,7 @@ def main(port: int, host: str, record: str | None, playback: str | None,
         console.print(f"[blue]Loaded playback from: {playback}[/blue]")
 
     # Print status
-    console.print(f"[green]QRC Mock Server[/green]")
+    console.print("[green]QRC Mock Server[/green]")
     console.print(f"  Host: {host}")
     console.print(f"  Port: {port}")
 

@@ -5,9 +5,7 @@ run) that should have failed. A false pass is worse than a false fail because
 every pipeline gate trusts qpdk's verdict. Every test here was red on 0.14.
 """
 
-import importlib.util
 import subprocess
-from pathlib import Path
 
 import pytest
 

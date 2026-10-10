@@ -18,7 +18,6 @@ legacy `{"Value": None}` shape for back-compat.
 
 from qpdk.mock_runtime.runtime import QSYSRuntime
 
-
 _HEADER = (
     'PluginInfo = { Name = "P~Test", Version = "1.0.0", Id = "com.p.test" }\n'
     "function GetProperties() return {} end\n"

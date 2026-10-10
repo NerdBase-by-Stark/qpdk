@@ -13,9 +13,8 @@ is buffered ("Nil if the read failed" — documented pattern is loop-until-nil).
 """
 import pytest
 
-from qpdk.mock_runtime.tcp_socket import MockTcpSocket, read_line, EOL_KEYWORDS
 from qpdk.mock_runtime.ssh import MockSsh
-
+from qpdk.mock_runtime.tcp_socket import EOL_KEYWORDS, MockTcpSocket, read_line
 
 # -- read_line unit semantics -------------------------------------------
 

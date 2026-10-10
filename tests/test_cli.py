@@ -13,7 +13,6 @@ from click.testing import CliRunner
 from qpdk.cli import main as qpdk_main
 from qpdk.validator.cli import main as qpdk_validate_main
 
-
 # --- minimal plugin sources ------------------------------------------------
 
 _GOOD = (
@@ -337,8 +336,8 @@ class TestRulesHelp:
 # Shipped examples: the good one passes every check, the bad ones are caught
 # ---------------------------------------------------------------------------
 
-from pathlib import Path  # noqa: E402
 import re  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 _EXAMPLES = Path(__file__).parent.parent / "examples"
 _GOOD_EXAMPLE = _EXAMPLES / "good" / "simple-button.qplug"
@@ -399,9 +398,7 @@ class TestShippedExamples:
 # scripts/bump-version.sh
 # ---------------------------------------------------------------------------
 
-import os  # noqa: E402
 import shutil  # noqa: E402
-import subprocess  # noqa: E402
 
 
 @pytest.mark.skipif(shutil.which("git") is None or shutil.which("bash") is None,

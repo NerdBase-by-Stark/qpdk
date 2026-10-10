@@ -2,10 +2,10 @@
 Validation result data structures.
 """
 
+import json
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
-import json
 
 
 class IssueSeverity(Enum):
@@ -123,13 +123,13 @@ class ValidationResult:
 
     def to_tap(self) -> str:
         """Format as TAP (Test Anything Protocol) output."""
-        lines = [f"TAP version 14", f"1..{len(self.issues) + 1}"]
+        lines = ["TAP version 14", f"1..{len(self.issues) + 1}"]
 
         # Overall plugin validity
         if self.valid:
-            lines.append(f"ok 1 - Plugin structure valid")
+            lines.append("ok 1 - Plugin structure valid")
         else:
-            lines.append(f"not ok 1 - Plugin structure invalid")
+            lines.append("not ok 1 - Plugin structure invalid")
 
         # Individual issues
         for i, issue in enumerate(self.issues, start=2):
@@ -137,10 +137,10 @@ class ValidationResult:
             loc = issue.format_location()
             lines.append(f"{status} {i} - [{issue.code}] {issue.message}{loc}")
             if issue.severity == IssueSeverity.ERROR:
-                lines.append(f"  ---")
+                lines.append("  ---")
                 lines.append(f"  severity: {issue.severity.value}")
                 lines.append(f"  source: {issue.source}")
-                lines.append(f"  ...")
+                lines.append("  ...")
 
         return "\n".join(lines)
 

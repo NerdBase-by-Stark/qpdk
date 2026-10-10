@@ -4,7 +4,6 @@ Mock SSH API
 Simulates Q-SYS Ssh.New() for offline plugin testing.
 """
 
-from typing import Callable, Any
 
 from .tcp_socket import read_line
 

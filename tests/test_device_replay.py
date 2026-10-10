@@ -5,7 +5,10 @@ import pytest
 
 from qpdk.mock_runtime.ssh import MockSsh
 from qpdk.testing.device_replay import (
-    DeviceRecording, ReplayDevice, UnrecordedCommandError, load_bank,
+    DeviceRecording,
+    ReplayDevice,
+    UnrecordedCommandError,
+    load_bank,
 )
 
 

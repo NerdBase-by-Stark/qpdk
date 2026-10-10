@@ -6,9 +6,9 @@ JSON-RPC 2.0 implementation for Q-SYS Remote Control protocol.
 Reference: Q-SYS Help > External Control > Q-SYS Remote Control Protocol
 """
 
+import json
 from dataclasses import dataclass, field
 from typing import Any
-import json
 
 
 # QRC Error Codes

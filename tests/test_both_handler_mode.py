@@ -17,7 +17,6 @@ import pytest
 from qpdk.mock_runtime.controls import MockControl
 from qpdk.mock_runtime.runtime import QSYSRuntime
 
-
 # ---------------------------------------------------------------- MockControl
 
 

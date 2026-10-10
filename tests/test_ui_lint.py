@@ -204,8 +204,8 @@ end
 
 class TestRegistration:
     def test_rule_metadata_registered(self):
-        from qpdk.validator.rulesets import RULE_METADATA
         from qpdk.validator.result import IssueSeverity
+        from qpdk.validator.rulesets import RULE_METADATA
         for code, sev in [("QPDK040", IssueSeverity.WARNING),
                           ("QPDK041", IssueSeverity.WARNING),
                           ("QPDK042", IssueSeverity.WARNING),

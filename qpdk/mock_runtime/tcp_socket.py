@@ -5,7 +5,6 @@ Simulates Q-SYS TcpSocket.New() for offline plugin testing.
 """
 
 import re
-from typing import Callable, Any
 
 # TcpSocket.EOL keywords — official table, TcpSocket.htm (SerialPorts.EOL
 # uses the same table). Q-SYS's actual
