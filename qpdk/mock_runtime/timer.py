@@ -9,6 +9,8 @@ import heapq
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from .controls import handler_arg
+
 
 @dataclass(order=True)
 class ScheduledEvent:
@@ -35,6 +37,9 @@ class MockTimer:
         self._event: ScheduledEvent | None = None
         self._interval: float = 0.0
         self._event_handler: Callable | None = None
+        # Lua wrapper set by QSYSRuntime._wrap_timer; Lua handlers receive it
+        # so the Timer.htm `if timer == timer1` dispatch works.
+        self.lua_self = None
 
     @property
     def EventHandler(self) -> Callable | None:
@@ -92,7 +97,7 @@ class MockTimer:
         """Internal callback that invokes the event handler."""
         if self._event_handler:
             try:
-                self._event_handler(self)
+                self._event_handler(handler_arg(self._event_handler, self))
             except Exception as e:
                 msg = f"Timer EventHandler error: {e}"
                 # Record so a runner can detect the crash instead of it being

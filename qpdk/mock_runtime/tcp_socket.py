@@ -135,6 +135,13 @@ class MockTcpSocket:
         self.BufferLength = len(self._read_buffer)
         return data
 
+    def Search(self, needle: str, start_pos: int = 1) -> int | None:
+        """TcpSocket.htm :Search(str, [start_pos]): 1-based index of str in
+        the buffer (searching from start_pos, default 1), nil if absent.
+        The buffer is not consumed."""
+        i = self._read_buffer.find(str(needle), max(int(start_pos or 1), 1) - 1)
+        return None if i < 0 else i + 1
+
     def ReadLine(self, eol: str, custom: str | None = None) -> str | None:
         """Read one line from the buffer per the official EOL semantics.
 

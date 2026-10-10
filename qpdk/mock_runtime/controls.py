@@ -9,6 +9,16 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+def handler_arg(handler: Any, py_obj: Any) -> Any:
+    """The object an EventHandler receives: the Lua wrapper for a Lua
+    function (what plugin code compares against), the Python mock for a
+    Python callable (what Python-side test handlers expect)."""
+    lua_self = getattr(py_obj, "lua_self", None)
+    if lua_self is not None and type(handler).__name__ == "_LuaFunction":
+        return lua_self
+    return py_obj
+
+
 @dataclass
 class MockControl:
     """A mock Q-SYS control."""
@@ -60,6 +70,15 @@ class MockControl:
     # set, handler exceptions are recorded here so a runner can detect them
     # instead of them being silently swallowed to stdout.
     error_sink: list | None = None
+    # The Lua-side wrapper the runtime hands to plugin code for this control
+    # (set by QSYSRuntime._wrap_control). Lua EventHandlers receive it, so
+    # identity dispatch (`if ctl == Controls.a`) and ctl.Index work as in the
+    # Controls_IO.htm examples.
+    lua_self: Any = field(default=None, repr=False, compare=False)
+    # .Index aspect: element index for array members, nil for single controls
+    # (Control_Aspects_Metadata.htm: "Only applicable when control is part of
+    # an array of controls").
+    index: int | None = None
 
     @property
     def Boolean(self) -> bool:
@@ -248,7 +267,7 @@ class MockControl:
         for handler in self._event_handlers:
             if handler:
                 try:
-                    handler(self)
+                    handler(handler_arg(handler, self))
                 except Exception as e:
                     msg = f"EventHandler error on {self.name}: {e}"
                     if self.error_sink is not None:

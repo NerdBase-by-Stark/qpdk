@@ -104,3 +104,6 @@ def inject_array_proxies(runtime: QSYSRuntime, arrays: dict[str, int]) -> None:
     proxy_lua = runtime._lua.eval(_PROXY_LUA)
     for name, count in arrays.items():
         proxy_lua(name, count)
+        # .Index aspect of each element (Control_Aspects_Metadata.htm).
+        for i in range(1, count + 1):
+            runtime.controls.get_or_create(f"{name} {i}").index = i
