@@ -35,7 +35,7 @@ class MockControl:
     css_class: str = ""
     choices: list[str] = field(default_factory=list)
 
-    # Optional min/max clamping (MR-P2-B)
+    # Optional min/max clamping
     # Real Q-SYS enforces Min/Max on Knob controls.
     # Set these to enable value clamping in the mock.
     min_value: float | None = None
@@ -44,13 +44,12 @@ class MockControl:
     # Control-schema metadata (from GetControls). Stored for fidelity/future
     # modeling. NOTE: no pin-exposure behavior is asserted from these — the
     # Trigger+Input/PinStyle=Both runtime semantics are unverified and must not
-    # be fabricated in the mock (see internal notes).
+    # be fabricated in the mock.
     button_type: str | None = None
     pin_style: str | None = None
     user_pin: bool = False
 
-    # Opt-in Both-handler mode (field-proven 2026-07-07, Designer 10.3 + Core
-    # Nano cascade-matrix probe): Lua writes to a PinStyle="Both" control DO
+    # Opt-in Both-handler mode (observed on a Core with Designer 10.3): Lua writes to a PinStyle="Both" control DO
     # fire its EventHandler on a real Core. Default False keeps the historical
     # mock behavior (no fire on Lua writes) so existing suites are unchanged;
     # QSYSRuntime(writes_fire_both_handlers=True) + apply_control_schema()
@@ -91,8 +90,8 @@ class MockControl:
         """Set boolean value.
 
         Fires EventHandlers only when writes_fire_handlers is set (Both-pin
-        controls under the opt-in mode — real Cores DO fire them, probe-proven
-        2026-07-07). Otherwise silent, the historical mock behavior. Use
+        controls under the opt-in mode — observed firing on a Core).
+        Otherwise silent, the historical mock behavior. Use
         simulate_external_write() to simulate external stimuli in tests.
         """
         self.value = 1.0 if val else 0.0
@@ -105,7 +104,7 @@ class MockControl:
     @Value.setter
     def Value(self, val: float) -> None:
         val = float(val)
-        # MR-P2-B: Clamp to Min/Max if set (real Q-SYS enforces this on Knob controls)
+        # Clamp to Min/Max if set (real Q-SYS enforces this on Knob controls)
         if self.min_value is not None and val < self.min_value:
             val = self.min_value
         if self.max_value is not None and val > self.max_value:
@@ -202,12 +201,12 @@ class MockControl:
     def Trigger(self) -> None:
         """Trigger the control (for buttons).
 
-        In real Q-SYS, calling ctrl:Trigger() from Lua does NOT fire the
-        control's own EventHandler. This is a no-op in the mock to match
-        hardware behavior. Use simulate_trigger() in tests to simulate
+        A no-op in the mock. Control_Aspects_Metadata.htm says changes made
+        by the script itself are not seen by the control's EventHandler;
+        what else :Trigger() does on a Core (Controls_IO.htm: "Triggers the
+        output") is not modelled. Use simulate_trigger() in tests to simulate
         an external button press.
         """
-        # No-op: real Q-SYS Trigger() from Lua does not fire EventHandlers
         pass
 
     def simulate_external_write(self, value: float) -> None:
@@ -219,7 +218,7 @@ class MockControl:
         to test EventHandler behavior.
         """
         val = float(value)
-        # MR-P2-B: Clamp to Min/Max if set
+        # Clamp to Min/Max if set
         if self.min_value is not None and val < self.min_value:
             val = self.min_value
         if self.max_value is not None and val > self.max_value:

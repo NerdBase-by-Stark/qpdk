@@ -1,9 +1,9 @@
 """Array-control derivation and Lua-side proxies.
 
 The truth about which controls are arrays lives in the plugin's own
-GetControls Count fields — hand-maintained maps rot silently (the ani22
-harness died for a month when a UI overhaul added stepper arrays its
-conftest list didn't know about). Derivation reads the plugin the way
+GetControls Count fields — hand-maintained maps rot silently (a plugin's
+harness broke when a UI overhaul added arrays its conftest list did not
+know about). Derivation reads the plugin the way
 Designer does, so the map can never drift from the source.
 """
 
@@ -23,7 +23,7 @@ def derive_with_runtime(
     Callers that keep making runtimes afterwards (PluginHarness) must PIN the
     returned runtime for their lifetime: letting it die mid-session is the
     dead-runtime cyclic-GC scenario behind the lupa address-reuse hazard
-    (see runtime.py _wrapped_controls note / KNOWN-ISSUE-lupa-flake).
+    (see the runtime.py _wrapped_controls note).
     """
     rt = QSYSRuntime(design_time=True)
     # prop_overrides: evaluate GetControls at the configuration under test,
@@ -56,21 +56,18 @@ def derive_array_controls(source: str) -> dict[str, int]:
 
     Strict: raises RuntimeError if design-time evaluation reports ANY error —
     a plugin that crashes at Designer drag-in has no trustworthy control
-    table, and masking that here would hide a real defect (the MXA920
-    PageNames class).
+    table, and masking that here would hide a real defect.
     """
     arrays, _rt, _schema = derive_with_runtime(source)
     return arrays
 
 
-# Lua proxy from the two proven conftests (ani22 == vitec):
+# Lua proxy used by field-tested plugin conftests:
 # Controls.name[i] delegates to the flat runtime namespace Controls["name i"].
 #
-# COUNT IS ENFORCED (V5 fix, 2026-07-12): the original proxy accepted its
-# count arg but never used it — combined with the mock auto-creating any
-# control it is asked for, EVERY numeric index resolved, so
-# ipairs(Controls[arr]) never hit nil and never terminated (hung the first
-# probe-kit smoke run, internal notes gap 4). Out-of-
+# COUNT IS ENFORCED: if the proxy ignored its count, the mock's
+# auto-created controls would make every numeric index resolve, so
+# ipairs(Controls[arr]) would never hit nil and never terminate. Out-of-
 # range indices now return nil, bounding ipairs at count exactly like the
 # real Controls array, and __len reports count so #Controls[arr] works too.
 _PROXY_LUA = """
@@ -95,7 +92,7 @@ def inject_array_proxies(runtime: QSYSRuntime, arrays: dict[str, int]) -> None:
     """Install Controls.<name>[i] proxies for every derived array control.
 
     MUST run BEFORE load_plugin: plugins legitimately index array controls
-    in their main chunk (ani22 does), and post-load injection cannot rescue
+    in their main chunk, and post-load injection cannot rescue
     a load that already crashed. Proxies are a testing concern — they stay
     here, not in the mock.
     """

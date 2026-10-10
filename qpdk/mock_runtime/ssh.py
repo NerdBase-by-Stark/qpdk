@@ -90,8 +90,8 @@ class MockSsh:
 
         Returns the line WITHOUT its terminator, or None ("nil") when no
         complete line is buffered. Same semantics as MockTcpSocket.ReadLine
-        (SSH sockets expose the same read API; cisco-modular calls
-        SSH:ReadLine(TcpSocket.EOL.Custom, "\\n")).
+        (SSH sockets expose the same read API, e.g.
+        ssh:ReadLine(TcpSocket.EOL.Custom, "\\n")).
         """
         line, self._read_buffer = read_line(self._read_buffer, eol, custom)
         self.BufferLength = len(self._read_buffer)

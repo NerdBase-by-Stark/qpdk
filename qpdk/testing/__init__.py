@@ -2,8 +2,7 @@
 
 Replaces the hand-rolled per-plugin conftest shims (array-control lists
 that rot, Properties/HttpClient repairs that upstream fixes made
-redundant) with one derived-from-the-plugin harness. See
-internal notes Part 2.
+redundant) with one derived-from-the-plugin harness.
 """
 
 from .arrays import derive_array_controls, inject_array_proxies

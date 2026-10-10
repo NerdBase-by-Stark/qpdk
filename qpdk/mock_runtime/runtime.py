@@ -143,19 +143,18 @@ class QSYSRuntime:
 
     def __init__(self, design_time: bool = False,
                  writes_fire_both_handlers: bool = False):
-        # Opt-in Both-handler mode (field-proven 2026-07-07, Designer 10.3 +
-        # Core Nano probe): on a real Core, Lua writes to PinStyle="Both"
+        # Opt-in Both-handler mode (observed on a Core with Designer 10.3):
+        # on a real Core, Lua writes to PinStyle="Both"
         # controls DO fire their EventHandlers — the mock historically never
         # fired on Lua writes, so mock-green tests could not catch echo loops
         # a real Core executes. With this True, apply_control_schema() arms
         # Both-pin controls to fire on Lua writes. Default False: existing
         # suites keep the historical (silent) behavior.
         self.writes_fire_both_handlers = writes_fire_both_handlers
-        # Design-time mode (D6, Fable review 2026-07-06): Designer evaluates
-        # the plugin file with `Controls` nil — the one VERIFIED design-time
-        # difference (reproduced drag-in crash: cisco-modular ce220a6,
-        # "GetControlLayout indexed nil Controls"; same mechanism QPDK012/025
-        # guard). With design_time=True the Controls global is NOT injected,
+        # Design-time mode: Designer evaluates the plugin file with
+        # `Controls` nil — the one verified design-time difference (a plugin
+        # whose GetControlLayout indexed Controls crashed on drag-in; the
+        # same mechanism QPDK012/025 guard). With design_time=True the Controls global is NOT injected,
         # so `if Controls then` correctly evaluates false and unguarded
         # Controls indexing raises exactly as Designer would crash. Other
         # runtime globals stay injected: their design-time availability is
@@ -192,7 +191,7 @@ class QSYSRuntime:
         # closures are cyclically collected while another runtime is live,
         # lupa's stale upvalue pointers can land on whatever Python object
         # reuses the address ("'MockTimer' object is not callable",
-        # reproduced deterministically via vitec TC15). Never freeing any
+        # reproduced deterministically in a downstream suite). Never freeing any
         # Lua-bound callable makes address reuse impossible. Cost: ~40 small
         # objects leaked per runtime, bounded by runtimes-per-process (test
         # sessions build a few hundred at most).
@@ -209,7 +208,7 @@ class QSYSRuntime:
         self.timer_api = TimerAPI()
         self._scheduler = get_global_scheduler()
 
-        # SSH and TcpSocket APIs (MR-P1-A, MR-P1-B)
+        # SSH and TcpSocket APIs
         self.ssh_api = SshAPI()
         self.tcp_api = TcpSocketAPI()
 
@@ -218,7 +217,7 @@ class QSYSRuntime:
 
         # Captured HttpClient verb calls: (VERB, lua request table). Tests
         # assert the request and drive the response via the captured table's
-        # EventHandler (U3).
+        # EventHandler.
         self.http_requests: list[tuple[str, Any]] = []
 
         # Lua runtime (lazy init)
@@ -231,7 +230,7 @@ class QSYSRuntime:
     def had_errors(self) -> bool:
         """True if any async EventHandler or timer callback crashed during the
         run. These paths are otherwise only printed; load-time errors raise
-        directly from load_string(). See internal notes"""
+        directly from load_string()."""
         return bool(self.errors) or bool(getattr(self._scheduler, "errors", []))
 
     @property
@@ -284,12 +283,12 @@ class QSYSRuntime:
         self._inject_properties_api(g)
         self._inject_system_api(g)
         self._inject_design_api(g)
-        self._inject_ssh_api(g)          # MR-P1-A
-        self._inject_tcp_socket_api(g)   # MR-P1-B
-        self._inject_network_api(g)      # MR-P1-C
-        self._inject_rapidjson_shim(g)   # MR-P2-A
-        self._inject_reflect_global(g)   # MR-P2-C
-        self._inject_stub_apis(g)        # P3 stubs
+        self._inject_ssh_api(g)
+        self._inject_tcp_socket_api(g)
+        self._inject_network_api(g)
+        self._inject_rapidjson_shim(g)
+        self._inject_reflect_global(g)
+        self._inject_stub_apis(g)
 
     def _inject_controls_api(self, g) -> None:
         """Inject Controls global.
@@ -417,7 +416,9 @@ class QSYSRuntime:
             elif key == "EventHandler":
                 return ctrl._event_handlers[0] if ctrl._event_handlers else None
             elif key == "Trigger":
-                # Return a no-op function matching real Q-SYS behavior
+                # No-op in the mock. Script writes do not fire the control's
+                # own handler (Control_Aspects_Metadata.htm); whether :Trigger
+                # does anything else on a Core is KB-silent.
                 return self._lua.eval("function() end")
             return None
 
@@ -468,8 +469,7 @@ class QSYSRuntime:
                 __newindex = function(self, key, value)
                     return ni_fn(self, key, value)
                 end,
-                -- #Controls.x on a single control: the escaped Designer crash
-                -- (internal notes row 7).
+                -- #Controls.x on a single control raises on a Core too.
                 __len = function()
                     error("attempt to get length of a userdata value", 2)
                 end
@@ -495,16 +495,17 @@ class QSYSRuntime:
         timer_table = self._lua.table()
 
         def create():
-            timer = self.timer_api.Create()
+            timer = self.timer_api.New()
             return self._wrap_timer(timer)
 
         def call_after(fn, delay):
             return self.timer_api.CallAfter(fn, delay)
 
         def now(*_args):
-            # KB-confirmed (Sys/Timer.htm): Timer.Now() returns seconds as a
-            # number. The mock returns virtual scheduler time so elapsed-time
-            # maths in plugins stays deterministic under tick().
+            # Timer.htm: Timer.Now() returns seconds since the epoch. The mock
+            # returns virtual scheduler time starting at 0 instead, so
+            # elapsed-time maths stays deterministic under tick(); values are
+            # not comparable with os.time() or usable with os.date().
             return float(self.current_time)
 
         timer_table.New = create      # Timer.New() is the documented constructor (Sys/Timer.htm)
@@ -555,9 +556,7 @@ class QSYSRuntime:
 
         def is_running(*args):
             # Support both t.IsRunning() and t:IsRunning().
-            # KB-confirmed surface: Timer.htm ":IsRunning() Returns true if
-            # the timer is running" (a hardware probe CONFIRMED, PLATFORM-CLAIMS-
-            # VERDICTS.md). Added V5 2026-07-12 (probe-kit gap 5).
+            # Timer.htm: ":IsRunning() Returns true if the timer is running".
             return timer.IsRunning()
 
         def get_handler(*_args):
@@ -577,8 +576,7 @@ class QSYSRuntime:
         # LUA closures. Returning a Python callable from __index re-marshals
         # it on every access, and that per-call marshal is where lupa
         # misroutes under multi-runtime GC churn ("'MockTimer' object is not
-        # callable" — the returned Start resolved to the timer itself; see
-        # internal notes).
+        # callable" — the returned Start resolved to the timer itself).
         setup_mt = self._lua.eval("""
         function(t, start_fn, stop_fn, is_running_fn, get_eh, set_eh)
             local methods = {
@@ -629,11 +627,9 @@ class QSYSRuntime:
         Controls uses above): assigning it as a lupa table attribute
         (`mt.__index = fn`) never registers the metamethod, which left
         Properties inert in runtime mode — every Lua read returned nil,
-        seeded test values were silently ignored, and 11/11 corpus plugins
-        were affected (U1, build spec 2026-07-06; vitec's conftest shipped
-        an install_properties_index() repair for exactly this).
+        and seeded test values were silently ignored.
 
-        Missing-key semantics (G2 decision, KB-undocumented): an UNDECLARED
+        Missing-key semantics (KB-undocumented): an UNDECLARED
         property reads as nil from Lua, matching plain-Lua-table behavior
         (inference — on hardware Properties is a table built from the
         declared GetProperties entries; not hardware-verified). The
@@ -644,7 +640,7 @@ class QSYSRuntime:
 
         def index(t, key):
             if key not in self.properties:
-                return None  # nil in Lua — G2 undeclared-key decision
+                return None  # nil in Lua for an undeclared key
             val = self.properties[key]
             if isinstance(val, dict):
                 # Return as Lua table
@@ -699,7 +695,7 @@ class QSYSRuntime:
         g.Design = design_table
 
     def _inject_ssh_api(self, g) -> None:
-        """Inject Ssh global (MR-P1-A).
+        """Inject Ssh global.
 
         Provides Ssh.New() which returns a mock SSH object with all 7 callbacks,
         Connect/Disconnect/Write/Read methods, and test harness simulate_* methods.
@@ -751,7 +747,7 @@ class QSYSRuntime:
             return None
 
         # Method callables defined ONCE, marshaled ONCE at setup (see the
-        # tcp wrapper note / KNOWN-ISSUE-lupa-flake-2026-07-06.md).
+        # tcp wrapper note on the lupa misroute).
         def connect(*args):
             host = args[0] if len(args) > 0 else None
             port = args[1] if len(args) > 1 else None
@@ -791,10 +787,9 @@ class QSYSRuntime:
                 ssh_obj.Timeout = value
             elif key == "LoginFailed":
                 ssh_obj.LoginFailed = value
-            # Timeout config must PERSIST (step 2b, mock-coverage P1-4b):
-            # falling through here silently dropped cisco's
-            # ReadTimeout/WriteTimeout/ReconnectTimeout assignments — the
-            # cleanest false-green in the coverage audit. Mirrors TcpSocket.
+            # Timeout config must persist: falling through here silently
+            # dropped ReadTimeout/WriteTimeout/ReconnectTimeout assignments.
+            # Mirrors TcpSocket.
             elif key in ("ReadTimeout", "WriteTimeout", "ReconnectTimeout", "IsInteractive"):
                 setattr(ssh_obj, key, value)
 
@@ -846,7 +841,7 @@ class QSYSRuntime:
         return wrapped
 
     def _inject_tcp_socket_api(self, g) -> None:
-        """Inject TcpSocket global (MR-P1-B).
+        """Inject TcpSocket global.
 
         Similar structure to SSH but with 6 callbacks (no LoginFailed).
         """
@@ -910,8 +905,7 @@ class QSYSRuntime:
         # Method callables are defined ONCE and cross the lupa boundary ONCE
         # (as setup upvalues). Returning a Python callable from __index
         # re-marshals it per access — the misroute point behind
-        # "'MockTcpSocket' object is not callable" (see
-        # internal notes).
+        # "'MockTcpSocket' object is not callable".
         def connect(*args):
             # args already stripped of Lua self by the Lua-side closure
             host = args[0] if len(args) > 0 else None
@@ -1011,7 +1005,7 @@ class QSYSRuntime:
         return wrapped
 
     def _inject_network_api(self, g) -> None:
-        """Inject Network global (MR-P1-C).
+        """Inject Network global.
 
         Many plugins call Network.Interfaces() at startup.
         Returns an empty table to prevent nil-call crashes.
@@ -1149,7 +1143,7 @@ class QSYSRuntime:
         g.package.loaded["rapidjson"] = rapid_tbl
 
     def _inject_reflect_global(self, g) -> None:
-        """Inject Reflect global (MR-P2-C).
+        """Inject Reflect global.
 
         Reflect is used by some plugins for cross-plugin control binding.
         Current behavior (nil) works by accident but should be explicit.
@@ -1158,17 +1152,17 @@ class QSYSRuntime:
         g.Reflect = None   # explicitly nil -- Reflect not supported in mock
 
     def _inject_stub_apis(self, g) -> None:
-        """Inject P3 stub APIs to prevent nil-call crashes.
+        """Inject stub APIs to prevent nil-call crashes.
 
         These APIs return empty results. Plugins that use them need stubs
         to avoid nil-call crashes when loading in the mock runtime.
 
-        MR-P2-D (PinStyle): pin EXPOSURE (does a pin render, does a wire
+        PinStyle: pin EXPOSURE (does a pin render, does a wire
         drive it) is still unmodeled. But the Both-pin write-echo class is
         now testable: QSYSRuntime(writes_fire_both_handlers=True) +
         apply_control_schema() fires EventHandlers on Lua writes to
-        PinStyle="Both" controls, matching probe-proven real-Core behavior
-        (2026-07-07, Designer 10.3 + Core Nano). QPDK035 is no longer the
+        PinStyle="Both" controls, matching behaviour observed on a Core
+        (Designer 10.3). QPDK035 is no longer the
         only defense.
         """
         self._inject_http_client_api(g)
@@ -1255,17 +1249,16 @@ class QSYSRuntime:
         self._setup_control_group_proxy(proxy, group)
         return proxy
 
-    # Verb statics per the official HttpClient doc (help.qsys.com, scraped to
-    # ../.firecrawl/qsys-httpclient.md): static functions taking a request
+    # Verb statics per the official HttpClient doc (HttpClient.htm): static functions taking a request
     # table; EventHandler signature (table, code, data, error, headers).
     _HTTP_VERBS = ("Download", "Upload", "Get", "Post", "Put", "Patch", "Delete")
 
     def _inject_http_client_api(self, g) -> None:
-        """Inject the real statics-shaped HttpClient (U3, build spec step 2).
+        """Inject the real statics-shaped HttpClient (HttpClient.htm).
 
         The previous mock exposed only `.New` — a constructor the official
         doc does not list — so every real call (HttpClient.Get{...},
-        GudeExpert's HttpClient.Download{...}) crashed on a nil static.
+        HttpClient.Download{...}) crashed on a nil static.
         Verb calls are captured into self.http_requests as (VERB, lua_table)
         so a test can assert the request and drive the response by invoking
         the captured table's EventHandler. Pure helpers (CreateUrl,
@@ -1452,11 +1445,9 @@ class QSYSRuntime:
             if entry is not None:
                 entry["Value"] = value
 
-        # QSC store plugins (ClockAudio CDT100, GudeExpert) read
-        # props["plugin_show_debug"] inside RectifyProperties without ever
-        # declaring it — the best explanation is that Designer injects it
-        # (INFERENCE, same class as page_index; evidenced by 2 of the 5
-        # QSC-managed plugins on disk). Synthesize false unless declared.
+        # Some QSC-published plugins read props["plugin_show_debug"] inside
+        # RectifyProperties without ever declaring it — the best explanation
+        # is that Designer injects it (INFERENCE, same class as page_index). Synthesize false unless declared.
         if props_table["plugin_show_debug"] is None:
             props_table["plugin_show_debug"] = self._lua.table(Value=False)
 
@@ -1471,8 +1462,7 @@ class QSYSRuntime:
 
         # Paged plugins read props["page_index"].Value in GetControlLayout —
         # a property Designer supplies, not one the plugin declares (evidence:
-        # the production cisco-modular plugin relies on it and runs in
-        # Designer). Synthesize page 1 unless the plugin declared its own;
+        # a field-deployed paged plugin relies on it and runs in Designer). Synthesize page 1 unless the plugin declared its own;
         # _run_layout_pages advances it per page.
         if g.GetPages is not None and props_table["page_index"] is None:
             props_table["page_index"] = self._lua.table(Value=1)
@@ -1607,9 +1597,8 @@ class QSYSRuntime:
 
     def reset(self) -> None:
         """Reset the runtime state."""
-        # F7: clear and REWIRE the async error sink. The previous
-        # `MockControls()` (no error_sink) silently re-broke the audit's M3 fix
-        # — post-reset EventHandler crashes were swallowed and had_errors() went
+        # Clear and REWIRE the async error sink. A bare `MockControls()`
+        # (no error_sink) would mean post-reset EventHandler crashes were swallowed and had_errors() went
         # stale. Clear the existing list in place (so any held reference stays
         # valid) and pass it back into the fresh MockControls.
         self.errors.clear()

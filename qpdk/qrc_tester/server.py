@@ -121,8 +121,7 @@ class QRCMockServer:
 
         Accepts both the file this server records ({"interactions": [...]})
         and the legacy hand-written format ({"responses": {method: [...]}}).
-        Before the D4 fix (Fable review 2026-07-06) the two halves were
-        incompatible: save_recording wrote "interactions" (requests only)
+        The two halves were once incompatible: save_recording wrote "interactions" (requests only)
         while load_playback read "responses", so a recorded session could
         never be played back.
         """
@@ -353,14 +352,10 @@ class QRCMockServer:
                                   request: QRCRequest) -> QRCResponse:
         """Handle Control.Set command.
 
-        Value coercion is string-tolerant, mirroring _handle_component_set's
-        V5 fix (2026-07-12): real string controls accept string Values over
-        QRC, but this handler used to float() every Value unconditionally, so
-        a non-numeric string raised ValueError, escaped the handler, and
-        _handle_client's generic except closed the client connection
-        (0.14.0 fix — same defect class flagged in
-        internal notes). Non-numeric string Values
-        now land on .string; numbers and numeric strings keep the float path.
+        Value coercion is string-tolerant, mirroring _handle_component_set:
+        real string controls accept string Values over QRC. Non-numeric
+        string Values land on .string; numbers and numeric strings keep the
+        float path.
         """
         params = request.params or []
 
@@ -423,12 +418,9 @@ class QRCMockServer:
         """Handle Component.Set command.
 
         Value coercion is string-tolerant: real string controls accept string
-        Values over QRC — the code-push lane IS a Component.Set of the "code"
-        control with Lua source as Value (community evidence, see
-        internal notes). The stock handler used to
-        float() every Value unconditionally, so a string payload raised
-        ValueError and killed the client connection (U3 open item, 2026-07-12
-        fix). Non-numeric string Values now land on .string instead.
+        Values over QRC (for example, pushing Lua source as the Value of a
+        script component's "code" control). Non-numeric string Values land
+        on .string instead of being coerced to float.
         """
         params = request.params or {}
         name = params.get("Name", "")

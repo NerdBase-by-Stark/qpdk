@@ -7,8 +7,8 @@ Simulates Q-SYS TcpSocket.New() for offline plugin testing.
 import re
 from typing import Callable, Any
 
-# TcpSocket.EOL keywords — official table, help.qsys.com TcpSocket topic
-# (verified 2026-07-09; SerialPorts.EOL uses the same table). Q-SYS's actual
+# TcpSocket.EOL keywords — official table, TcpSocket.htm (SerialPorts.EOL
+# uses the same table). Q-SYS's actual
 # runtime values are opaque; plugins only pass them through to ReadLine, so
 # string tokens are sufficient here.
 EOL_KEYWORDS = ("Any", "CrLf", "CrLfStrict", "Lf", "Null", "Custom")
