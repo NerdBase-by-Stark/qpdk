@@ -587,3 +587,30 @@ class TestCrashedRuleIsError:
         r = PluginValidator().validate_string(self._SRC)
         assert any(i.code == "QPDK000" and "evaluator bug" in i.message for i in r.errors)
         assert not r.valid
+
+
+class TestStatusNotAGlobal:
+    """C1: Status and StatusState are not Q-SYS globals (help.qsys.com
+    "Q-SYS Extensions to Lua" lists neither), so the validator must not
+    treat them as predefined."""
+
+    def test_not_in_globals_lists(self):
+        from qpdk.validator.qsys_globals import QSYS_GLOBALS_V7, QSYS_GLOBALS_V9
+        for g in (QSYS_GLOBALS_V7, QSYS_GLOBALS_V9):
+            assert "Status" not in g and "StatusState" not in g
+
+    @pytest.mark.skipif(__import__("shutil").which("luacheck") is None,
+                        reason="luacheck not installed")
+    def test_undefined_status_call_warns(self, tmp_path):
+        f = tmp_path / "status.qplug"
+        f.write_text(
+            'PluginInfo = { Name = "T~St", Version = "1.0.0", Id = "t.st" }\n'
+            "function GetProperties() return {} end\n"
+            "function GetControls() return {} end\n"
+            "function GetControlLayout() return {}, {} end\n"
+            "if Controls then\n"
+            "  Status.OK()\n"
+            "end\n")
+        r = PluginValidator().validate_file(f)
+        assert any(i.code == "LUACHECK-W113" and "'Status'" in i.message
+                   for i in r.warnings)
