@@ -176,6 +176,10 @@ class QRCChangeGroup:
     # deltas (ChangeGroup.Invalidate exists to force a full resend, per
     # help.qsys.com QRC_Commands).
     last_sent: dict[str, tuple] = field(default_factory=dict)
+    # Controls added through ChangeGroup.AddComponentControl: internal key
+    # ("Comp.ctl") -> (component name, control name). Poll reports these
+    # with separate Component and Name fields (QRC_Commands.htm).
+    component_controls: dict[str, tuple[str, str]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {

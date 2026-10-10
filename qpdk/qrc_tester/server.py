@@ -90,6 +90,7 @@ class QRCMockServer:
             "ChangeGroup.Invalidate": self._handle_cg_invalidate,
             "ChangeGroup.Clear": self._handle_cg_clear,
             "Snapshot.Load": self._handle_snapshot_load,
+            "Snapshot.Save": self._handle_snapshot_save,
         }
         # Running AutoPoll emitters: (client_id, group_id) -> Task
         self._autopoll_tasks: dict[tuple[str, str], asyncio.Task] = {}
@@ -232,7 +233,17 @@ class QRCMockServer:
         else:
             handler = self._handlers.get(request.method)
             if handler:
-                response = await handler(client_id, request)
+                try:
+                    response = await handler(client_id, request)
+                except (AttributeError, TypeError, ValueError, KeyError) as e:
+                    # Params of the wrong shape (an array where the method
+                    # takes an object, a missing field) get a JSON-RPC
+                    # "Invalid params" error instead of a dropped connection.
+                    response = QRCResponse.make_error(
+                        request.id,
+                        QRCErrorCode.INVALID_PARAMS,
+                        f"Invalid params for {request.method}: {e}",
+                    )
             else:
                 response = QRCResponse.make_error(
                     request.id,
@@ -287,15 +298,9 @@ class QRCMockServer:
 
     async def _handle_status_get(self, client_id: str,
                                  request: QRCRequest) -> QRCResponse:
-        """Handle StatusGet command."""
-        return QRCResponse.success(request.id, {
-            "Platform": self.state.platform,
-            "State": "Active",
-            "DesignName": self.state.design_name,
-            "DesignCode": self.state.design_code,
-            "IsRedundant": False,
-            "IsEmulator": True,
-        })
+        """Handle StatusGet: same body as EngineStatus, including the
+        Status {Code, String} block (QRC_Commands.htm StatusGet example)."""
+        return QRCResponse.success(request.id, self._engine_status_payload())
 
     def _engine_status_payload(self) -> dict:
         """The EngineStatus body — shared by the request/response handler and
@@ -331,19 +336,17 @@ class QRCMockServer:
         else:
             names = [params]
 
-        results = []
-        for name in names:
-            if name in self.state.controls:
-                results.append(self.state.controls[name].to_dict())
-            else:
-                # Return default for unknown controls
-                results.append({
-                    "Name": name,
-                    "Value": 0.0,
-                    "String": "",
-                    "Position": 0.0,
-                })
-
+        unknown = [name for name in names if name not in self.state.controls]
+        if unknown:
+            # Error code 8 "Unknown control" (QRC_Commands.htm error table).
+            # The doc does not show Control.Get's exact reply for an unknown
+            # name; an error is used so a typo in a client fails the test.
+            return QRCResponse.make_error(
+                request.id,
+                QRCErrorCode.UNKNOWN_CONTROL,
+                f"Unknown control: {', '.join(str(n) for n in unknown)}",
+            )
+        results = [self.state.controls[name].to_dict() for name in names]
         return QRCResponse.success(request.id, results)
 
     async def _handle_control_set(self, client_id: str,
@@ -457,6 +460,20 @@ class QRCMockServer:
             if "String" in ctrl:
                 c.string = str(ctrl["String"])
 
+        if params.get("ResponseValues"):
+            # QRC_Commands.htm Component.Set Example 3: with ResponseValues
+            # true the result is the new state of each control set.
+            values = []
+            for ctrl in controls:
+                c = self.state.controls[f"{name}.{ctrl.get('Name')}"]
+                values.append({
+                    "Component": name,
+                    "Name": ctrl.get("Name"),
+                    "String": c.string,
+                    "Value": c.value,
+                    "Position": c.position,
+                })
+            return QRCResponse.success(request.id, values)
         return QRCResponse.success(request.id, True)
 
     async def _handle_get_components(self, client_id: str,
@@ -538,6 +555,8 @@ class QRCMockServer:
             key = f"{comp_name}.{name}" if comp_name else name
             if key not in group.controls:
                 group.controls.append(key)
+            if comp_name:
+                group.component_controls[key] = (comp_name, name)
 
         return QRCResponse.success(request.id, {"Id": group_id})
 
@@ -610,7 +629,14 @@ class QRCMockServer:
             snapshot = (ctrl.value, ctrl.string, ctrl.position)
             if group.last_sent.get(name) != snapshot:
                 group.last_sent[name] = snapshot
-                changes.append(ctrl.to_dict())
+                entry = ctrl.to_dict()
+                origin = group.component_controls.get(name)
+                if origin is not None:
+                    # Component controls are reported as {"Component": ...,
+                    # "Name": <short name>} (QRC_Commands.htm Poll example).
+                    entry = {"Component": origin[0], "Name": origin[1],
+                             **{k: v for k, v in entry.items() if k != "Name"}}
+                changes.append(entry)
         return changes
 
     async def _handle_cg_invalidate(self, client_id: str,
@@ -716,6 +742,11 @@ class QRCMockServer:
         ramp = params.get("Ramp", 0.0)
 
         # Mock implementation - just acknowledge
+        return QRCResponse.success(request.id, True)
+
+    async def _handle_snapshot_save(self, client_id: str,
+                                    request: QRCRequest) -> QRCResponse:
+        """Handle Snapshot.Save (mock: acknowledge, nothing is stored)."""
         return QRCResponse.success(request.id, True)
 
     async def start_listening(self, record_to: str | None = None) -> None:
