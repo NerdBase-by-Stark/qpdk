@@ -1,4 +1,4 @@
-"""0.15 false-pass regressions (an internal review).
+"""0.15 false-pass regressions.
 
 Each class reproduces one case where qpdk 0.14 gave a PASS to a plugin (or a
 run) that should have failed. A false pass is worse than a false fail because
@@ -284,7 +284,7 @@ class TestHarnessConfiguration:
         assert rt._lua.eval('Controls.channel[3]') is None
 
 
-# --- Sol review of 0.15 (cross-family) ----------------------------------------
+# --- Further 0.15 review findings ---------------------------------------------
 
 class TestSolReviewFindings:
     def test_out_of_range_flat_element_is_flagged(self):
