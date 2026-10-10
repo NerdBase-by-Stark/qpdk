@@ -1,4 +1,4 @@
-"""CLI contract tests (F8).
+"""CLI contract tests.
 
 Guards the CI-load-bearing exit-code (0/1/2), single-vs-multi-file JSON shape,
 and TAP shape for BOTH `qpdk validate` and the standalone `qpdk-validate`
@@ -144,7 +144,7 @@ class TestDesignCheckCommand:
 
 
 # ---------------------------------------------------------------------------
-# Machine formats must be ANSI-free even under FORCE_COLOR (D7)
+# Machine formats must be ANSI-free even under FORCE_COLOR
 # ---------------------------------------------------------------------------
 
 import os
