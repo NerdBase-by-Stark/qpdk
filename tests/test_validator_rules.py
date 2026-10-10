@@ -2623,8 +2623,20 @@ class TestF5TriggerInputPin:
         result = v.validate_string(code)
         issues = [i for i in result.issues if i.code == "QPDK011"]
         assert len(issues) == 1
-        assert issues[0].severity == IssueSeverity.WARNING
+        # B2: INFO (full ruleset only) until a bench probe settles it; QSC's
+        # own managed plugins ship this pattern.
+        assert issues[0].severity == IssueSeverity.INFO
         assert "Unverified" in issues[0].message
+
+    def test_trigger_input_silent_in_default_ruleset(self):
+        code = _plugin_with_controls(
+            "F5Def",
+            '  table.insert(ctls, { Name = "Fire", ControlType = "Button", ButtonType = "Trigger", PinStyle = "Input" })\n',
+            '  layout["Fire"] = {}\n',
+            "f5-def",
+        )
+        result = PluginValidator(ruleset="default").validate_string(code)
+        assert not any(i.code == "QPDK011" for i in result.issues)
 
     def test_trigger_both_warns(self, v):
         code = _plugin_with_controls(

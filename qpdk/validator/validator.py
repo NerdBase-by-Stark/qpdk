@@ -33,7 +33,7 @@ class PluginValidator:
     DUPLICATE_PLUGIN_ID = "QPDK008"
     VERSION_API = "QPDK009"
     CONTROL_NAMING = "QPDK010"
-    TRIGGER_INPUT_PIN = "QPDK011"      # F5 — Button Trigger + PinStyle Input/Both (hedged WARNING)
+    TRIGGER_INPUT_PIN = "QPDK011"      # Button Trigger + PinStyle Input/Both (advisory INFO)
     DESIGN_TIME_RUNTIME_GLOBAL = "QPDK012"  # runtime-only global indexed in a design-time GetX body (ERROR Controls / WARNING others)
     CONTROL_LAYOUT_COUPLING = "QPDK013"  # F6 — GetControls<->GetControlLayout key coupling (WARNING/INFO)
     LOG_API = "QPDK020"
@@ -1799,16 +1799,16 @@ class PluginValidator:
         ``ButtonType="Trigger"`` and ``PinStyle`` in {Input, Both} is suspicious:
         Trigger buttons are typically driven by Lua, not by a wired input pin.
 
-        Scope (KB-grounded, see internal notes):
+        Scope:
           * EXCLUDES ButtonType="StateTrigger" — KB (State_Trigger.htm,
             "#### Input Pin") confirms StateTrigger DOES expose a functioning
             input pin, so flagging it would be wrong.
           * Does NOT flag PinStyle="Output" (legitimate pulse-out) — only the
             input-bearing pin styles Input/Both.
 
-        HEDGED WARNING, never ERROR: the precise "Trigger+Input renders no pin"
-        mechanism is NOT KB-confirmed, so the message says so explicitly. This
-        deliberately avoids the retired-QPDK038 fabrication failure mode.
+        INFO only (full ruleset): the "Trigger+Input renders no pin" mechanism
+        is not in the Q-SYS docs and QSC's own managed plugins ship this
+        pattern, so it stays advisory until a bench probe settles it.
         """
         raw_lines = getattr(self, "_raw_content", content).split("\n")
         for block, name in self._iter_getcontrols_blocks(content):
@@ -1832,7 +1832,7 @@ class PluginValidator:
                 raw_lines[line_num - 1], self.TRIGGER_INPUT_PIN
             ):
                 continue
-            result.add_warning(
+            result.add_info(
                 self.TRIGGER_INPUT_PIN,
                 f"Button '{name}' uses ButtonType=Trigger with "
                 f"PinStyle={pstyle_m.group(1)} — Trigger buttons are typically "

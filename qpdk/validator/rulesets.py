@@ -37,10 +37,11 @@ RULE_METADATA: dict[str, dict] = {
     "QPDK003": {"severity": IssueSeverity.ERROR,   "phase": 1, "category": "structure",  "description": "Missing required PluginInfo field"},
     "QPDK004": {"severity": IssueSeverity.WARNING, "phase": 2, "category": "structure",  "description": "Invalid PluginInfo field value"},
     "QPDK010": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "naming",     "description": "Control naming suggestion"},
-    # F5 — hedged WARNING (the "Trigger+Input renders no pin" mechanism is NOT
-    # KB-confirmed; the message says so). StateTrigger is excluded (KB: it DOES
-    # expose an input pin). Never ERROR.
-    "QPDK011": {"severity": IssueSeverity.WARNING, "phase": 2, "category": "framework",  "description": "Button ButtonType=Trigger with input PinStyle (Input/Both)"},
+    # Advisory INFO, full ruleset only: the "Trigger+Input renders no pin"
+    # mechanism is not in the Q-SYS docs and QSC's own managed plugins ship
+    # the pattern. StateTrigger is excluded (State_Trigger.htm: it DOES expose
+    # an input pin). Promote only after a bench probe confirms it.
+    "QPDK011": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "framework",  "description": "Button ButtonType=Trigger with input PinStyle (Input/Both)"},
     # F6 — emits WARNING (orphaned layout key / likely typo) + INFO (control with
     # no layout entry). Phase 3 so the advisory INFO direction is full-only.
     # Never ERROR (load-breaking severity of an orphaned key is KB-unverified).
