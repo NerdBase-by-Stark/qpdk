@@ -2144,9 +2144,10 @@ class PluginValidator:
     def _validate_monitor_mode_guard(self, content: str, result: ValidationResult) -> None:
         """Detect sendData calls without monitor_mode guard.
 
-        QPDK037: Every sendData call path must check the monitor_mode flag.
-        Failing to do so causes command injection in monitoring-only
-        deployments.  Only triggers if monitor_mode variable exists in file.
+        QPDK037 (advisory INFO): every sendData call path should check the
+        monitor_mode flag, or a monitoring-only deployment can send commands.
+        Keyed to the sendData/monitor_mode naming of Cisco xAPI plugins; only
+        triggers if a monitor_mode identifier exists in the file.
 
         Two improvements over the original 5-line lookback:
         1. Read-only commands (xStatus, xFeedback register, echo) are
@@ -2166,9 +2167,9 @@ class PluginValidator:
         func_ranges = self._find_function_ranges(lines)
 
         # Pre-compute which function ranges contain a monitor_mode guard.
-        guard_pat = re.compile(
-            r'\b(?:if|elseif)\s+(?:not\s+)?(?:Controls\.)?monitor_mode\b'
-        )
+        # Any if/elseif condition that tests monitor_mode, including compound
+        # ones such as `if isWrite and Controls.monitor_mode.Boolean then`.
+        guard_pat = re.compile(r'\b(?:if|elseif)\b[^\n]*\bmonitor_mode\b')
         guarded_ranges = set()
         for start, end in func_ranges:
             for i in range(start, end + 1):
@@ -2210,7 +2211,7 @@ class PluginValidator:
                 if enclosing is not None and enclosing in guarded_ranges:
                     continue
 
-                result.add_warning(
+                result.add_info(
                     self.MONITOR_MODE_GUARD,
                     "sendData() call without nearby monitor_mode guard. "
                     "In monitoring-only deployments, sendData() should only "

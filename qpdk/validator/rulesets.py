@@ -77,13 +77,13 @@ RULE_METADATA: dict[str, dict] = {
     # is never stopped is correct for polling and only wrong for a one-shot.
     "QPDK031": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "timer",      "description": "Timer never stopped (fine for polling, wrong for a one-shot)"},
     "QPDK032": {"severity": IssueSeverity.WARNING, "phase": 3, "category": "safety",     "description": "Poll without connection guard"},
-    "QPDK033": {"severity": IssueSeverity.WARNING, "phase": 3, "category": "security",   "description": "xAPI string injection risk"},
+    "QPDK033": {"severity": IssueSeverity.WARNING, "phase": 3, "category": "security",   "description": "xAPI string injection risk (Cisco xAPI plugins using sendData only)"},
     "QPDK034": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "complexity",  "description": "Monolithic function (>100 lines; >500 for framework API functions)"},
     # QPDK035 is INFO: the docs are silent on whether a script write re-fires
     # the handler, and vendor plugins write feedback to Both-pin controls.
     "QPDK035": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "framework",  "description": "PinStyle Both written from Lua (possible feedback loop)"},
     "QPDK036": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "framework",  "description": "Dual-context write to indicator"},
-    "QPDK037": {"severity": IssueSeverity.WARNING, "phase": 3, "category": "framework",  "description": "Missing monitor mode guard"},
+    "QPDK037": {"severity": IssueSeverity.INFO,    "phase": 3, "category": "framework",  "description": "Missing monitor mode guard (Cisco xAPI plugins using sendData/monitor_mode only)"},
     # QPDK038 (Reflect/StatusGP "clamps Value 4") intentionally NOT shipped:
     # the Value-4->3 clamp claim is unverified, and the pattern ships in
     # field-deployed plugins. Re-introduce only once confirmed on real hardware.

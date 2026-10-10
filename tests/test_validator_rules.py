@@ -1909,7 +1909,24 @@ if Controls then
 end
 """, "monitor-bad")
         result = v.validate_string(code)
-        assert any(i.code == "QPDK037" for i in result.issues)
+        hits = [i for i in result.issues if i.code == "QPDK037"]
+        # B7: advisory INFO; the rule is keyed to one plugin family's naming.
+        assert hits and all(i.severity == IssueSeverity.INFO for i in hits)
+
+    def test_compound_monitor_guard_ok(self, v):
+        """B7: `if isWrite and Controls.monitor_mode.Boolean then return end` guards."""
+        code = _plugin("Monitor Compound", """\
+if Controls then
+  function send(cmd, isWrite)
+    if isWrite and Controls.monitor_mode.Boolean then
+      return
+    end
+    sendData(cmd)
+  end
+end
+""", "monitor-compound")
+        result = v.validate_string(code)
+        assert not any(i.code == "QPDK037" for i in result.issues)
 
     def test_senddata_with_monitor_guard_ok(self, v):
         """sendData with nearby monitor_mode check must NOT produce QPDK037."""
